@@ -44,6 +44,10 @@ struct ScreenChar {
 
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
+const CURSOR_PORT_CMD: u16 = 0x3d4;
+const CURSOR_PORT_DATA: u16 = 0x3d5;
+const CURSOR_CMD_SET_POS_X: u16 = 0x0f;
+const CURSOR_CMD_SET_POS_Y: u16 = 0x0e;
 
 #[repr(transparent)]
 struct Buffer {
@@ -74,6 +78,7 @@ impl Writer {
                     color_code: color_code,
                 });
                 self.column_position += 1;
+                self.move_cursor(self.column_position, BUFFER_HEIGHT - 1);
             }
         }
     }
@@ -87,6 +92,7 @@ impl Writer {
         }
         self.clear_row(BUFFER_HEIGHT - 1);
         self.column_position = 0;
+        self.move_cursor(0, BUFFER_HEIGHT - 1);
     }
 
     fn clear_row(&mut self, row: usize) {
@@ -107,6 +113,23 @@ impl Writer {
                 // not part of printable ASCII range
                 _ => self.write_byte(0xfe),
             }
+        }
+    }
+
+    fn move_cursor(&mut self, x: usize, y: usize) {
+        use core::convert::TryInto;
+        use x86_64::instructions::port::Port;
+
+        let mut cursor_port_cmd = Port::new(CURSOR_PORT_CMD);
+        let mut cursor_port_data = Port::new(CURSOR_PORT_DATA);
+
+        let pos: u16 = (y * BUFFER_WIDTH + x).try_into().unwrap();
+        unsafe {
+            cursor_port_cmd.write(CURSOR_CMD_SET_POS_X);
+            cursor_port_data.write(pos & 0xff);
+
+            cursor_port_cmd.write(CURSOR_CMD_SET_POS_Y);
+            cursor_port_data.write((pos >> 8) & 0xff);
         }
     }
 }

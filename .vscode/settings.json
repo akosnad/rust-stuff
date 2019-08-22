@@ -1,0 +1,3 @@
+{
+    "rust.target": "x86_64-bare_os.json",
+}

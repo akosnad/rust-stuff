@@ -17,6 +17,9 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     println!("Hello World{}", "!");
     crate::init();
 
+    #[cfg(test)]
+    test_main();
+
     let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
     let mut frame_allocator =
         unsafe { memory::BootInfoFrameAllocator::init(&boot_info.memory_map) };
@@ -28,9 +31,6 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     // write the string `New!` to the screen through the new mapping
     let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
     unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e) };
-
-    #[cfg(test)]
-    test_main();
 
     println!("Kernel execution has ended without errors");
     hlt_loop();
