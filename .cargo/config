@@ -1,6 +1,9 @@
 [build]
 target = "x86_64-bare_os.json"
 
+[target.'cfg(target_os = "none")']
+runner = "bootimage runner"
+
 [target.'cfg(target_os = "linux")']
 rustflags = ["-C", "link-arg=-nostartfiles"]
 

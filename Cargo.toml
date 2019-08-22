@@ -4,6 +4,20 @@ version = "0.1.0"
 authors = ["faazuthnar <faazuthnar@faazuthnar.xyz>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.bootimage]
+test-args = [
+    "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",
+    "-display", "none"
+]
+test-success-exit-code = 33         # (0x10 << 1) | 1
 
 [dependencies]
+bootloader = "0.8.0"
+volatile = "0.2.6"
+spin = "0.4.9"
+x86_64 = "0.7.0"
+uart_16550 = "0.2.0"
+
+[dependencies.lazy_static]
+version = "1.0"
+features = ["spin_no_std"]
