@@ -16,14 +16,14 @@ pub extern "C" fn _start() -> ! {
     test_main();
 
     println!("Kernel execution has ended without errors");
-    crate::hlt_loop();
+    hlt_loop();
 }
 
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    crate::hlt_loop();
+    hlt_loop();
 }
 
 #[cfg(test)]
