@@ -5,29 +5,25 @@
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
-use rust_stuff::println;
+use rust_stuff::{hlt_loop, init, println};
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     println!("Hello World{}", "!");
-    rust_stuff::init();
+    crate::init();
 
     #[cfg(test)]
     test_main();
 
     println!("Kernel execution has ended without errors");
-    loop {
-        x86_64::instructions::hlt();
-    }
+    crate::hlt_loop();
 }
 
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    loop {
-        x86_64::instructions::hlt();
-    }
+    crate::hlt_loop();
 }
 
 #[cfg(test)]
