@@ -4,6 +4,9 @@
 #![test_runner(rust_stuff::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+extern crate alloc;
+
+use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use rust_stuff::{hlt_loop, init, println};
@@ -11,26 +14,40 @@ use rust_stuff::{hlt_loop, init, println};
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use rust_stuff::memory;
-    use x86_64::{structures::paging::Page, VirtAddr};
+    use rust_stuff::allocator;
+    use rust_stuff::memory::{self, BootInfoFrameAllocator};
 
     println!("Hello World{}", "!");
     crate::init();
 
+    let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+
+    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
+
+    let x = Box::new(42);
+    println!("x at: {:p}", x);
+
+    let mut vec = Vec::new();
+    for i in 0..500 {
+        vec.push(i);
+    }
+    println!("vec at: {:p}", vec.as_slice());
+
+    let reference_counted = Rc::new(vec![1, 2, 3]);
+    let cloned_reference = reference_counted.clone();
+    println!(
+        "current reference count: {}",
+        Rc::strong_count(&cloned_reference)
+    );
+    core::mem::drop(reference_counted);
+    println!(
+        "after drop of original: {}",
+        Rc::strong_count(&cloned_reference)
+    );
+
     #[cfg(test)]
     test_main();
-
-    let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
-    let mut frame_allocator =
-        unsafe { memory::BootInfoFrameAllocator::init(&boot_info.memory_map) };
-
-    // map a previously unmapped page
-    let page = Page::containing_address(VirtAddr::new(0x1000));
-    memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
-
-    // write the string `New!` to the screen through the new mapping
-    let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
-    unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e) };
 
     println!("Kernel execution has ended without errors");
     hlt_loop();

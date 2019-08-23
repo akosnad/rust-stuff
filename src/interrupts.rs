@@ -6,7 +6,7 @@ use spin;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
 #[cfg(test)]
-use crate::{serial_print, serial_println};
+use crate::serial_println;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -111,7 +111,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Interrup
     }
 
     let mut keyboard = KEYBOARD.lock();
-    let mut port = Port::new(0x60);
+    let port = Port::new(0x60);
 
     let scancode: u8 = unsafe { port.read() };
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
