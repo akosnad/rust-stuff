@@ -32,6 +32,7 @@ impl InterruptIndex {
 }
 
 lazy_static! {
+    #[derive(Debug)]
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
 
@@ -51,6 +52,7 @@ lazy_static! {
 }
 
 pub fn init_idt() {
+    trace!("loading IDT: {:?}", IDT);
     IDT.load();
 }
 

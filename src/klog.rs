@@ -10,12 +10,17 @@ impl log::Log for KernelLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            println!(
-                "[{}] [{}]: {}",
-                record.target(),
-                record.level(),
-                record.args()
-            );
+            match record.level() {
+                Level::Debug | Level::Trace => println!(
+                    "[{} from {}:{}] {}",
+                    record.level(),
+                    record.file().unwrap_or("unknown source"),
+                    record.line().unwrap_or_default(),
+                    record.args()
+                ),
+                _ => println!("[{}] {}", record.level(), record.args()),
+            }
+            // println!("{:#?}", record);
         }
     }
 
@@ -24,6 +29,12 @@ impl log::Log for KernelLogger {
 
 static LOGGER: KernelLogger = KernelLogger;
 
+#[cfg(debug_assertions)]
+pub fn init() -> Result<(), SetLoggerError> {
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Debug))
+}
+
+#[cfg(not(debug_assertions))]
 pub fn init() -> Result<(), SetLoggerError> {
     log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Warn))
 }

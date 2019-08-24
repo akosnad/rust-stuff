@@ -6,6 +6,7 @@
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
 
+#[macro_use]
 extern crate alloc;
 
 pub mod allocator;
@@ -18,6 +19,7 @@ pub mod vga_buffer;
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
+use log::{debug, trace};
 
 pub fn init() {
     gdt::init();
@@ -25,9 +27,11 @@ pub fn init() {
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
     klog::init().expect("couldn't init logger");
+    debug!("init done");
 }
 
 pub fn hlt_loop() -> ! {
+    trace!("halting");
     loop {
         x86_64::instructions::hlt();
     }

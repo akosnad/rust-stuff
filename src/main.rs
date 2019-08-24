@@ -17,7 +17,6 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rust_stuff::allocator;
     use rust_stuff::memory::{self, BootInfoFrameAllocator};
 
-    println!("Hello World{}", "!");
     crate::init();
 
     let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
@@ -28,7 +27,6 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    println!("Kernel execution has ended without errors");
     hlt_loop();
 }
 

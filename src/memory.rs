@@ -1,3 +1,4 @@
+use log::trace;
 use x86_64::structures::paging::{
     FrameAllocator, MappedPageTable, MapperAllSizes, PageTable, PhysFrame, Size4KiB,
 };
@@ -11,6 +12,7 @@ use x86_64::{PhysAddr, VirtAddr};
 /// to avoid aliasing `&mut` references (which is undefined behavior).
 pub unsafe fn init(physical_memory_offset: u64) -> impl MapperAllSizes {
     let level_4_table = active_level_4_table(physical_memory_offset);
+    trace!("initializing lvl4 page table: {:?}", level_4_table);
     let phys_to_virt = move |frame: PhysFrame| -> *mut PageTable {
         let phys = frame.start_address().as_u64();
         let virt = VirtAddr::new(phys + physical_memory_offset);
@@ -34,6 +36,7 @@ unsafe fn active_level_4_table(physical_memory_offset: u64) -> &'static mut Page
     let virt = VirtAddr::new(phys.as_u64() + physical_memory_offset);
     let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
 
+    trace!("lvl4 page table at: {:?}", page_table_ptr);
     &mut *page_table_ptr // unsafe
 }
 
