@@ -11,6 +11,7 @@ extern crate alloc;
 pub mod allocator;
 pub mod gdt;
 pub mod interrupts;
+pub mod klog;
 pub mod memory;
 pub mod serial;
 pub mod vga_buffer;
@@ -23,6 +24,7 @@ pub fn init() {
     interrupts::init_idt();
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
+    klog::init().expect("couldn't init logger");
 }
 
 pub fn hlt_loop() -> ! {
