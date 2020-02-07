@@ -8,7 +8,6 @@ extern crate alloc;
 
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
-use log::{debug, error, info, LevelFilter};
 use rust_stuff::{hlt_loop, init, println};
 
 entry_point!(kernel_main);
