@@ -1,4 +1,7 @@
+use alloc::vec::Vec;
 use core::fmt;
+use core::fmt::Write;
+use core::ops::{Index, IndexMut};
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
@@ -54,14 +57,59 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-pub struct Writer {
+pub trait Writer: fmt::Write {
+    fn new_line(&mut self);
+    fn write_byte(&mut self, byte: u8);
+    fn write_string(&mut self, s: &str) {
+        for byte in s.bytes() {
+            match byte {
+                // printable ASCII byte or newline
+                0x20..=0x7e | b'\n' => self.write_byte(byte),
+                // not part of printable ASCII range
+                _ => self.write_byte(0xfe),
+            }
+        }
+    }
+    fn scroll_up(&mut self, _lines: usize) {}
+    fn scroll_down(&mut self, _lines: usize) {}
+}
+
+pub struct PlainVGA {
     column_position: usize,
     color_code: ColorCode,
     buffer: &'static mut Buffer,
 }
 
-impl Writer {
-    pub fn write_byte(&mut self, byte: u8) {
+impl PlainVGA {
+    fn move_cursor(x: usize, y: usize) {
+        use core::convert::TryInto;
+        use x86_64::instructions::port::Port;
+
+        let mut cursor_port_cmd = Port::new(CURSOR_PORT_CMD);
+        let mut cursor_port_data = Port::new(CURSOR_PORT_DATA);
+
+        let pos: u16 = (y * BUFFER_WIDTH + x).try_into().unwrap();
+        unsafe {
+            cursor_port_cmd.write(CURSOR_CMD_SET_POS_X);
+            cursor_port_data.write(pos & 0xff);
+
+            cursor_port_cmd.write(CURSOR_CMD_SET_POS_Y);
+            cursor_port_data.write((pos >> 8) & 0xff);
+        }
+    }
+    fn clear_row(&mut self, row: usize) {
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: self.color_code,
+        };
+        for col in 0..BUFFER_WIDTH {
+            self.buffer.chars[row][col].write(blank);
+        }
+    }
+}
+
+impl Writer for PlainVGA {
+    fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
             byte => {
@@ -78,7 +126,7 @@ impl Writer {
                     color_code: color_code,
                 });
                 self.column_position += 1;
-                self.move_cursor(self.column_position, BUFFER_HEIGHT - 1);
+                PlainVGA::move_cursor(self.column_position, BUFFER_HEIGHT - 1);
             }
         }
     }
@@ -92,49 +140,90 @@ impl Writer {
         }
         self.clear_row(BUFFER_HEIGHT - 1);
         self.column_position = 0;
-        self.move_cursor(0, BUFFER_HEIGHT - 1);
+        PlainVGA::move_cursor(0, BUFFER_HEIGHT - 1);
     }
+}
 
-    fn clear_row(&mut self, row: usize) {
-        let blank = ScreenChar {
-            ascii_character: b' ',
-            color_code: self.color_code,
-        };
-        for col in 0..BUFFER_WIDTH {
-            self.buffer.chars[row][col].write(blank);
-        }
+impl fmt::Write for PlainVGA {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
     }
+}
 
-    pub fn write_string(&mut self, s: &str) {
-        for byte in s.bytes() {
-            match byte {
-                // printable ASCII byte or newline
-                0x20..=0x7e | b'\n' => self.write_byte(byte),
-                // not part of printable ASCII range
-                _ => self.write_byte(0xfe),
+pub struct ScrollbackVGA {
+    scrollback: Vec<Vec<ScreenChar>>,
+    scroll_row: usize,
+    column_position: usize,
+    row_position: usize,
+    color_code: ColorCode,
+    buffer: &'static mut Buffer,
+}
+
+impl ScrollbackVGA {
+    fn update_screen(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            let line = self.scrollback.index(row);
+            for col in 0..BUFFER_WIDTH {
+                let character = line.index(col);
+                self.buffer.chars[row][col].write(*character);
             }
         }
     }
 
-    fn move_cursor(&mut self, x: usize, y: usize) {
-        use core::convert::TryInto;
-        use x86_64::instructions::port::Port;
+    fn scroll_down(&mut self, lines: usize) {
+        self.scroll_row += lines;
+        self.update_screen();
+    }
 
-        let mut cursor_port_cmd = Port::new(CURSOR_PORT_CMD);
-        let mut cursor_port_data = Port::new(CURSOR_PORT_DATA);
-
-        let pos: u16 = (y * BUFFER_WIDTH + x).try_into().unwrap();
-        unsafe {
-            cursor_port_cmd.write(CURSOR_CMD_SET_POS_X);
-            cursor_port_data.write(pos & 0xff);
-
-            cursor_port_cmd.write(CURSOR_CMD_SET_POS_Y);
-            cursor_port_data.write((pos >> 8) & 0xff);
-        }
+    fn scroll_up(&mut self, lines: usize) {
+        self.scroll_row -= lines;
+        // if self.scroll_row < 0 {
+        //     self.scroll_row = 0;
+        // }
+        self.update_screen();
     }
 }
 
-impl fmt::Write for Writer {
+impl Writer for ScrollbackVGA {
+    fn write_byte(&mut self, byte: u8) {
+        match byte {
+            b'\n' => self.new_line(),
+            byte => {
+                if self.column_position >= BUFFER_WIDTH {
+                    self.new_line();
+                }
+
+                let row = self.row_position - self.scroll_row;
+                let col = self.column_position;
+                let current_line = self.scrollback.index_mut(self.row_position);
+
+                let color_code = self.color_code;
+                current_line.push(ScreenChar {
+                    ascii_character: byte,
+                    color_code: color_code,
+                });
+                self.column_position += 1;
+                if row <= BUFFER_HEIGHT {
+                    self.buffer.chars[row][col].write(ScreenChar {
+                        ascii_character: byte,
+                        color_code: color_code,
+                    });
+                    PlainVGA::move_cursor(col + 1, row);
+                }
+            }
+        }
+    }
+
+    fn new_line(&mut self) {
+        self.scrollback.push(Vec::with_capacity(BUFFER_WIDTH));
+        self.row_position += 1;
+        self.column_position = 0;
+        self.scroll_down(1);
+    }
+}
+
+impl fmt::Write for ScrollbackVGA {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())
@@ -142,20 +231,38 @@ impl fmt::Write for Writer {
 }
 
 lazy_static! {
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+    pub static ref PLAINVGA: Mutex<PlainVGA> = Mutex::new(PlainVGA {
         column_position: 0,
         color_code: ColorCode::new(Color::LightGray, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
 }
 
+lazy_static! {
+    pub static ref VGABUFFER: dyn Writer = PLAINVGA;
+}
+
+pub fn init_scrollback() {
+    let ref mut writer = ScrollbackVGA {
+        column_position: 0,
+        row_position: 0,
+        color_code: ColorCode::new(Color::LightGray, Color::Black),
+        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+        scroll_row: 0,
+        scrollback: Vec::new(),
+    };
+    writer.scrollback.push(Vec::with_capacity(BUFFER_WIDTH));
+
+    let mut vga_buffer = Mutex::new(VGABuffer { writer: writer });
+    VGABUFFER = vga_buffer;
+}
+
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    use core::fmt::Write;
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        WRITER.lock().write_fmt(args).unwrap();
+        VGABUFFER.lock().writer.write_fmt(args).unwrap();
     });
 }
 

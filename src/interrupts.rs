@@ -1,6 +1,6 @@
-use crate::gdt;
-use crate::{hlt_loop, print, println};
+use crate::{gdt, hlt_loop, print, println, vga_buffer::Writer};
 use lazy_static::lazy_static;
+use log::trace;
 use pic8259_simple::ChainedPics;
 use spin;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
@@ -103,7 +103,8 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: &mut InterruptSt
 }
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut InterruptStackFrame) {
-    use pc_keyboard::{layouts, DecodedKey, Keyboard, ScancodeSet1};
+    use crate::vga_buffer::VGABUFFER;
+    use pc_keyboard::{layouts, DecodedKey, KeyCode, Keyboard, ScancodeSet1};
     use spin::Mutex;
     use x86_64::instructions::port::Port;
 
@@ -119,6 +120,8 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: &mut Interrup
     if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
         if let Some(key) = keyboard.process_keyevent(key_event) {
             match key {
+                DecodedKey::RawKey(KeyCode::PageDown) => VGABUFFER.lock().writer.scroll_down(1),
+                DecodedKey::RawKey(KeyCode::PageUp) => VGABUFFER.lock().writer.scroll_up(1),
                 DecodedKey::Unicode(character) => print!("{}", character),
                 DecodedKey::RawKey(key) => print!("{:?}", key),
             }

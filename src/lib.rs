@@ -6,7 +6,6 @@
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
 
-#[macro_use]
 extern crate alloc;
 
 pub mod allocator;

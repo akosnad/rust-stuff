@@ -24,6 +24,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
+    vga_buffer::init_scrollback();
+
     #[cfg(test)]
     test_main();
 
