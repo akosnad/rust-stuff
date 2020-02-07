@@ -54,14 +54,60 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-pub struct Writer {
+pub trait Writer {
+    fn new_line(&mut self);
+    fn write_byte(&mut self, byte: u8);
+    fn write_string(&mut self, s: &str) {
+        for byte in s.bytes() {
+            match byte {
+                // printable ASCII byte or newline
+                0x20..=0x7e | b'\n' => self.write_byte(byte),
+                // not part of printable ASCII range
+                _ => self.write_byte(0xfe),
+            }
+        }
+    }
+    fn scroll(&mut self, lines: isize) {}
+    fn focus_cursor(&mut self) {}
+}
+
+pub struct TextMode {
     column_position: usize,
     color_code: ColorCode,
     buffer: &'static mut Buffer,
 }
 
-impl Writer {
-    pub fn write_byte(&mut self, byte: u8) {
+impl TextMode {
+    fn clear_row(&mut self, row: usize) {
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: self.color_code,
+        };
+        for col in 0..BUFFER_WIDTH {
+            self.buffer.chars[row][col].write(blank);
+        }
+    }
+
+    fn move_cursor(&mut self, x: usize, y: usize) {
+        use core::convert::TryInto;
+        use x86_64::instructions::port::Port;
+
+        let mut cursor_port_cmd = Port::new(CURSOR_PORT_CMD);
+        let mut cursor_port_data = Port::new(CURSOR_PORT_DATA);
+
+        let pos: u16 = (y * BUFFER_WIDTH + x).try_into().unwrap();
+        unsafe {
+            cursor_port_cmd.write(CURSOR_CMD_SET_POS_X);
+            cursor_port_data.write(pos & 0xff);
+
+            cursor_port_cmd.write(CURSOR_CMD_SET_POS_Y);
+            cursor_port_data.write((pos >> 8) & 0xff);
+        }
+    }
+}
+
+impl Writer for TextMode {
+    fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
             byte => {
@@ -94,47 +140,9 @@ impl Writer {
         self.column_position = 0;
         self.move_cursor(0, BUFFER_HEIGHT - 1);
     }
-
-    fn clear_row(&mut self, row: usize) {
-        let blank = ScreenChar {
-            ascii_character: b' ',
-            color_code: self.color_code,
-        };
-        for col in 0..BUFFER_WIDTH {
-            self.buffer.chars[row][col].write(blank);
-        }
-    }
-
-    pub fn write_string(&mut self, s: &str) {
-        for byte in s.bytes() {
-            match byte {
-                // printable ASCII byte or newline
-                0x20..=0x7e | b'\n' => self.write_byte(byte),
-                // not part of printable ASCII range
-                _ => self.write_byte(0xfe),
-            }
-        }
-    }
-
-    fn move_cursor(&mut self, x: usize, y: usize) {
-        use core::convert::TryInto;
-        use x86_64::instructions::port::Port;
-
-        let mut cursor_port_cmd = Port::new(CURSOR_PORT_CMD);
-        let mut cursor_port_data = Port::new(CURSOR_PORT_DATA);
-
-        let pos: u16 = (y * BUFFER_WIDTH + x).try_into().unwrap();
-        unsafe {
-            cursor_port_cmd.write(CURSOR_CMD_SET_POS_X);
-            cursor_port_data.write(pos & 0xff);
-
-            cursor_port_cmd.write(CURSOR_CMD_SET_POS_Y);
-            cursor_port_data.write((pos >> 8) & 0xff);
-        }
-    }
 }
 
-impl fmt::Write for Writer {
+impl fmt::Write for TextMode {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())
@@ -142,7 +150,7 @@ impl fmt::Write for Writer {
 }
 
 lazy_static! {
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+    pub static ref WRITER: Mutex<TextMode> = Mutex::new(TextMode {
         column_position: 0,
         color_code: ColorCode::new(Color::LightGray, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
