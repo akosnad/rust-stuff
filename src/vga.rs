@@ -6,7 +6,7 @@ use volatile::Volatile;
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-pub enum Color {
+enum Color {
     Black = 0,
     Blue = 1,
     Green = 2,
@@ -54,7 +54,7 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-pub trait Writer {
+trait Writer {
     fn new_line(&mut self);
     fn write_byte(&mut self, byte: u8);
     fn write_string(&mut self, s: &str) {
@@ -169,7 +169,7 @@ pub fn _print(args: fmt::Arguments) {
 
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::vga::_print(format_args!($($arg)*)));
 }
 
 #[macro_export]

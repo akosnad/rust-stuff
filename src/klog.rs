@@ -1,4 +1,4 @@
-use crate::println;
+use crate::{println, serial_println};
 use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
 
 struct KernelLogger;
@@ -11,16 +11,27 @@ impl log::Log for KernelLogger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             match record.level() {
-                Level::Debug | Level::Trace => println!(
-                    "[{} from {}:{}] {}",
-                    record.level(),
-                    record.file().unwrap_or("unknown source"),
-                    record.line().unwrap_or_default(),
-                    record.args()
-                ),
-                _ => println!("[{}] {}", record.level(), record.args()),
+                Level::Debug | Level::Trace => {
+                    serial_println!(
+                        "[{} from {}:{}] {}",
+                        record.level(),
+                        record.file().unwrap_or("unknown source"),
+                        record.line().unwrap_or_default(),
+                        record.args()
+                    );
+                    println!(
+                        "[{} from {}:{}] {}",
+                        record.level(),
+                        record.file().unwrap_or("unknown source"),
+                        record.line().unwrap_or_default(),
+                        record.args()
+                    );
+                },
+                _ => {
+                    serial_println!("[{}] {}", record.level(), record.args());
+                    println!("[{}] {}", record.level(), record.args());
+                },
             }
-            // println!("{:#?}", record);
         }
     }
 

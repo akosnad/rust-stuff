@@ -14,7 +14,7 @@ pub mod interrupts;
 pub mod klog;
 pub mod memory;
 pub mod serial;
-pub mod vga_buffer;
+pub mod vga;
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
