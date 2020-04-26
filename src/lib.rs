@@ -17,7 +17,6 @@ pub mod serial;
 pub mod vga;
 
 use core::panic::PanicInfo;
-use linked_list_allocator::LockedHeap;
 use log::{debug, trace};
 
 pub fn init() {
@@ -35,9 +34,6 @@ pub fn hlt_loop() -> ! {
         x86_64::instructions::hlt();
     }
 }
-
-#[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 #[alloc_error_handler]
 fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
