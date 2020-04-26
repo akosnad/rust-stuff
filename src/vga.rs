@@ -67,7 +67,7 @@ trait Writer {
             }
         }
     }
-    fn scroll(&mut self, lines: isize) {}
+    fn scroll(&mut self, _lines: isize) {}
     fn focus_cursor(&mut self) {}
 }
 
