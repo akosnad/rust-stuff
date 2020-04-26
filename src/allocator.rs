@@ -7,6 +7,7 @@ use x86_64::{
 };
 
 pub mod bump;
+pub mod linked_list;
 
 pub struct Locked<A> {
     inner: spin::Mutex<A>,
@@ -31,10 +32,11 @@ fn align_up(addr: usize, align: usize) -> usize {
     (addr + align - 1) & !(align - 1)
 }
 
-use bump::BumpAllocator;
+use linked_list::LinkedListAllocator;
 
 #[global_allocator]
-static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+static ALLOCATOR: Locked<LinkedListAllocator> = 
+    Locked::new(LinkedListAllocator::new());
 
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
