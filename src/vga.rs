@@ -1,4 +1,3 @@
-use core::fmt;
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
@@ -6,7 +5,7 @@ use volatile::Volatile;
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
-enum Color {
+pub enum Color {
     Black = 0,
     Blue = 1,
     Green = 2,
@@ -27,23 +26,26 @@ enum Color {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-struct ColorCode(u8);
+pub struct ColorCode(u8);
 
 impl ColorCode {
-    fn new(foreground: Color, background: Color) -> ColorCode {
+    pub fn new(foreground: Color, background: Color) -> ColorCode {
         ColorCode((background as u8) << 4 | (foreground as u8))
+    }
+    pub fn default() -> Self {
+        ColorCode::new(Color::LightGray, Color::Black)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-struct ScreenChar {
-    ascii_character: u8,
-    color_code: ColorCode,
+pub struct ScreenChar {
+    pub ascii_character: u8,
+    pub color_code: ColorCode,
 }
 
-const BUFFER_HEIGHT: usize = 25;
-const BUFFER_WIDTH: usize = 80;
+pub const BUFFER_HEIGHT: usize = 25;
+pub const BUFFER_WIDTH: usize = 80;
 const CURSOR_PORT_CMD: u16 = 0x3d4;
 const CURSOR_PORT_DATA: u16 = 0x3d5;
 const CURSOR_CMD_SET_POS_X: u16 = 0x0f;
@@ -54,25 +56,9 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-trait Writer {
-    fn new_line(&mut self);
-    fn write_byte(&mut self, byte: u8);
-    fn write_string(&mut self, s: &str) {
-        for byte in s.bytes() {
-            match byte {
-                // printable ASCII byte or newline
-                0x20..=0x7e | b'\n' => self.write_byte(byte),
-                // not part of printable ASCII range
-                _ => self.write_byte(0xfe),
-            }
-        }
-    }
-    fn scroll(&mut self, _lines: isize) {}
-    fn focus_cursor(&mut self) {}
-}
-
 pub struct TextMode {
-    column_position: usize,
+    col: usize,
+    row: usize,
     color_code: ColorCode,
     buffer: &'static mut Buffer,
 }
@@ -88,14 +74,14 @@ impl TextMode {
         }
     }
 
-    fn move_cursor(&mut self, x: usize, y: usize) {
+    fn update_cursor(&mut self) {
         use core::convert::TryInto;
         use x86_64::instructions::port::Port;
 
         let mut cursor_port_cmd = Port::new(CURSOR_PORT_CMD);
         let mut cursor_port_data = Port::new(CURSOR_PORT_DATA);
 
-        let pos: u16 = (y * BUFFER_WIDTH + x).try_into().unwrap();
+        let pos: u16 = (self.row * BUFFER_WIDTH + self.col).try_into().unwrap();
         unsafe {
             cursor_port_cmd.write(CURSOR_CMD_SET_POS_X);
             cursor_port_data.write(pos & 0xff);
@@ -104,60 +90,61 @@ impl TextMode {
             cursor_port_data.write((pos >> 8) & 0xff);
         }
     }
-}
 
-impl Writer for TextMode {
-    fn write_byte(&mut self, byte: u8) {
-        match byte {
+    pub fn move_cursor(&mut self, x: usize, y: usize) {
+        // TODO: check x and y ranges
+        self.row = y;
+        self.col = x;
+        self.update_cursor();
+    }
+    pub fn write_screen_char(&mut self, character: &ScreenChar) {
+        match character.ascii_character {
             b'\n' => self.new_line(),
-            byte => {
-                if self.column_position >= BUFFER_WIDTH {
+            _ => {
+                if self.col >= BUFFER_WIDTH {
                     self.new_line();
                 }
 
-                let row = BUFFER_HEIGHT - 1;
-                let col = self.column_position;
-
-                let color_code = self.color_code;
-                self.buffer.chars[row][col].write(ScreenChar {
-                    ascii_character: byte,
-                    color_code: color_code,
-                });
-                self.column_position += 1;
-                self.move_cursor(self.column_position, BUFFER_HEIGHT - 1);
+                self.buffer.chars[self.row][self.col].write(*character);
+                self.col += 1;
+                self.update_cursor();
             }
         }
     }
-
-    fn new_line(&mut self) {
-        for row in 1..BUFFER_HEIGHT {
-            for col in 0..BUFFER_WIDTH {
-                let character = self.buffer.chars[row][col].read();
-                self.buffer.chars[row - 1][col].write(character);
-            }
-        }
-        self.clear_row(BUFFER_HEIGHT - 1);
-        self.column_position = 0;
-        self.move_cursor(0, BUFFER_HEIGHT - 1);
+    pub fn write_byte(&mut self, byte: u8) {
+        self.write_screen_char(&ScreenChar {
+            ascii_character: byte,
+            color_code: ColorCode::default(),
+        })
     }
-}
-
-impl fmt::Write for TextMode {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write_string(s);
-        Ok(())
+    pub fn new_line(&mut self) {
+        if self.row == BUFFER_HEIGHT - 1 {
+            for row in 1..BUFFER_HEIGHT {
+                for col in 0..BUFFER_WIDTH {
+                    let character = self.buffer.chars[row][col].read();
+                    self.buffer.chars[row - 1][col].write(character);
+                }
+            }
+            self.clear_row(BUFFER_HEIGHT - 1);
+        } else {
+            self.row += 1;
+        }
+        self.col = 0;
+        self.update_cursor();
     }
 }
 
 lazy_static! {
     pub static ref WRITER: Mutex<TextMode> = Mutex::new(TextMode {
-        column_position: 0,
-        color_code: ColorCode::new(Color::LightGray, Color::Black),
+        col: 0,
+        row: 0,
+        color_code: ColorCode::default(),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
 }
 
 #[doc(hidden)]
+#[cfg(test)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
@@ -167,19 +154,8 @@ pub fn _print(args: fmt::Arguments) {
     });
 }
 
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ($crate::vga::_print(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! println {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
-}
-
 #[cfg(test)]
-use crate::{serial_print, serial_println};
+use crate::{serial_print, serial_println, print, println};
 
 #[test_case]
 fn test_println_simple() {

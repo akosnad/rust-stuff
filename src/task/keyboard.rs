@@ -3,8 +3,9 @@ use crossbeam_queue::ArrayQueue;
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::stream::{Stream, StreamExt};
 use futures_util::task::AtomicWaker;
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use crate::print;
+use crate::screenbuffer::EscapeChar;
 
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -67,6 +68,8 @@ pub async fn print_keypresses() {
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
                     DecodedKey::Unicode(character) => print!("{}", character),
+                    DecodedKey::RawKey(KeyCode::PageUp) => print!("{}", EscapeChar::ScrollUp as u8 as char),
+                    DecodedKey::RawKey(KeyCode::PageDown) => print!("{}", EscapeChar::ScrollDown as u8 as char),
                     DecodedKey::RawKey(key) => print!("{:?}", key),
                 }
             }

@@ -18,10 +18,10 @@ pub mod klog;
 pub mod memory;
 pub mod serial;
 pub mod vga;
+pub mod screenbuffer;
 pub mod task;
 
 use core::panic::PanicInfo;
-use log::{debug, trace};
 
 pub fn init() {
     gdt::init();
@@ -29,11 +29,9 @@ pub fn init() {
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
     klog::init().expect("couldn't init logger");
-    debug!("init done");
 }
 
 pub fn hlt_loop() -> ! {
-    trace!("halting");
     loop {
         x86_64::instructions::hlt();
     }
