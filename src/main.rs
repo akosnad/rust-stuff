@@ -8,9 +8,19 @@ extern crate alloc;
 
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
-use rust_stuff::{hlt_loop, init, println};
+use rust_stuff::{hlt_loop, init, println, serial_println};
+use rust_stuff::task::{Task, simple_executor::SimpleExecutor};
 
 entry_point!(kernel_main);
+
+async fn async_number() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    log::info!("async_number: {}", number);
+}
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rust_stuff::allocator;
@@ -23,6 +33,12 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
+    let mut executor = SimpleExecutor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.run();
+
+    log::info!("kernel_main finished");
+
     #[cfg(test)]
     test_main();
 
@@ -33,6 +49,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
+    serial_println!("{}", info);
     x86_64::instructions::interrupts::disable();
     hlt_loop();
 }

@@ -17,6 +17,7 @@ pub mod klog;
 pub mod memory;
 pub mod serial;
 pub mod vga;
+pub mod task;
 
 use core::panic::PanicInfo;
 use log::{debug, trace};
