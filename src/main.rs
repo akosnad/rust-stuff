@@ -9,13 +9,13 @@ extern crate alloc;
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use rust_stuff::init;
-use rust_stuff::task::{Task, executor::Executor, keyboard, print};
 
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rust_stuff::allocator;
     use rust_stuff::memory::{self, BootInfoFrameAllocator};
+    use rust_stuff::task::{Task, executor::Executor, keyboard, term};
 
     crate::init();
 
@@ -28,7 +28,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     test_main();
 
     let mut executor = Executor::new();
-    executor.spawn(Task::new(print::print_screenbuffer()));
+    executor.spawn(Task::new(term::print_screenbuffer()));
     executor.spawn(Task::new(keyboard::print_keypresses()));
     executor.run();
 }

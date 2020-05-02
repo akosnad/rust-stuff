@@ -18,17 +18,18 @@ pub mod klog;
 pub mod memory;
 pub mod serial;
 pub mod vga;
-pub mod screenbuffer;
+pub mod term;
 pub mod task;
 
 use core::panic::PanicInfo;
 
 pub fn init() {
+    klog::init().expect("couldn't init logger");
     gdt::init();
     interrupts::init_idt();
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
-    klog::init().expect("couldn't init logger");
+    log::info!("Welcome");
 }
 
 pub fn hlt_loop() -> ! {
@@ -39,7 +40,7 @@ pub fn hlt_loop() -> ! {
 
 #[alloc_error_handler]
 fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
-    panic!("allocation error: {:?}", layout)
+    panic!("allocation error: {:#?}", layout)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

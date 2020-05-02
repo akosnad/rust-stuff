@@ -19,16 +19,17 @@ pub enum EscapeChar {
     ScrollDown,
 }
 
-pub struct Screenbuffer {
+pub struct Textbuffer {
     scrollback: [Line; SCREENBUFFER_SCROLLBACK_ROWS],
     col: usize,
     row: usize,
     scroll_row: usize,
+    pub enable_output: bool,
 }
 
-impl Screenbuffer {
+impl Textbuffer {
     pub fn new() -> Self {
-        let mut screenbuffer = Self {
+        let mut screenbuffer = Textbuffer {
             scrollback: [ Line {
                 chars: [ScreenChar {
                     ascii_character: b' ',
@@ -38,26 +39,32 @@ impl Screenbuffer {
             col: 0,
             row: 0,
             scroll_row: 0,
+            enable_output: true,
         };
         screenbuffer.scroll_to(0);
         screenbuffer
     }
 
+    pub fn update_screen(&mut self) {
+        if self.enable_output {
+            let mut writer = WRITER.lock();
+            writer.move_cursor(0, 0);
+            for line in self.scrollback[self.scroll_row .. self.scroll_row + BUFFER_HEIGHT].iter() {
+                for character in line.chars.iter() {
+                    writer.write_screen_char(character);
+                }
+            }
+            if self.row.checked_sub(self.scroll_row) != None {
+                writer.move_cursor(self.col, self.row - self.scroll_row);
+            }
+        }
+    }
+
     fn scroll_to(&mut self, row: usize) {
-        let mut writer = WRITER.lock();
         self.scroll_row = if row > SCREENBUFFER_SCROLLBACK_ROWS - BUFFER_HEIGHT { 
             SCREENBUFFER_SCROLLBACK_ROWS - BUFFER_HEIGHT
         } else { row };
-        
-        writer.move_cursor(0, 0);
-        for line in self.scrollback[self.scroll_row .. self.scroll_row + BUFFER_HEIGHT].iter() {
-            for character in line.chars.iter() {
-                writer.write_screen_char(character);
-            }
-        }
-        if self.row.checked_sub(self.scroll_row) != None {
-            writer.move_cursor(self.col, self.row - self.scroll_row);
-        }
+        self.update_screen();
     }
 
     fn scroll(&mut self, lines: usize, down: bool) {
@@ -90,7 +97,7 @@ impl Screenbuffer {
 
         if self.row >= self.scroll_row + BUFFER_HEIGHT {
             self.scroll(1, true);
-        } else {
+        } else if self.enable_output {
             WRITER.lock().new_line();
         }
     }
@@ -115,9 +122,11 @@ impl Screenbuffer {
                 };
                 self.col += 1;
 
-                x86_64::instructions::interrupts::without_interrupts(|| {
-                    WRITER.lock().write_byte(byte);
-                });
+                if self.enable_output {
+                    x86_64::instructions::interrupts::without_interrupts(|| {
+                        WRITER.lock().write_byte(byte);
+                    });
+                }
             }
         }
     }
@@ -129,7 +138,7 @@ impl Screenbuffer {
     }
 }
 
-impl fmt::Write for Screenbuffer {
+impl fmt::Write for Textbuffer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())
@@ -142,7 +151,7 @@ pub fn _print(args: fmt::Arguments) {
         let mut string = String::new();
         fmt::write(&mut string, args).expect("error converting fmt::Arguments to String");
         for character in string.chars() {
-            crate::task::print::add_char(character);
+            crate::task::term::add_char(character);
         }
     } else {
         crate::vga::_print(args);
@@ -152,7 +161,7 @@ pub fn _print(args: fmt::Arguments) {
 #[cfg(not(test))]
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::screenbuffer::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::term::_print(format_args!($($arg)*)));
 }
 
 #[cfg(not(test))]

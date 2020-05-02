@@ -12,7 +12,18 @@ use x86_64::{PhysAddr, VirtAddr};
 /// to avoid aliasing `&mut` references (which is undefined behavior).
 pub unsafe fn init(physical_memory_offset: u64) -> impl MapperAllSizes {
     let level_4_table = active_level_4_table(physical_memory_offset);
-    trace!("initializing lvl4 page table: {:?}", level_4_table);
+
+    #[cfg(debug_assertions)]
+    {
+        use x86_64::structures::paging::PageTableFlags;
+        trace!("present page table entries:");
+        for entry in level_4_table.iter() {
+            if entry.flags().contains(PageTableFlags::PRESENT) {
+                trace!("{:?}", entry);
+            }
+        }
+    }
+
     let phys_to_virt = move |frame: PhysFrame| -> *mut PageTable {
         let phys = frame.start_address().as_u64();
         let virt = VirtAddr::new(phys + physical_memory_offset);
@@ -82,7 +93,7 @@ fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: u64) -> Option<P
         frame = match entry.frame() {
             Ok(frame) => frame,
             Err(FrameError::FrameNotPresent) => return None,
-            Err(FrameError::HugeFrame) => panic!("huge pages not supported"),
+            Err(FrameError::HugeFrame) => unimplemented!("huge pages not supported"),
         };
     }
 

@@ -3,19 +3,21 @@ use crossbeam_queue::ArrayQueue;
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::stream::{Stream, StreamExt};
 use futures_util::task::AtomicWaker;
-use crate::screenbuffer::{Screenbuffer, USE_SCREENBUFFER};
+use crate::term::{Textbuffer, USE_SCREENBUFFER};
 
-static PRINT_QUEUE: OnceCell<ArrayQueue<char>> = OnceCell::uninit();
-static PRINT_WAKER: AtomicWaker = AtomicWaker::new();
+static TERM_QUEUE: OnceCell<ArrayQueue<char>> = OnceCell::uninit();
+static TERM_WAKER: AtomicWaker = AtomicWaker::new();
 
 pub(crate) fn add_char(character: char) {
-    if let Ok(queue) = PRINT_QUEUE.try_get() {
+    if let Ok(queue) = TERM_QUEUE.try_get() {
         if let Err(_) = queue.push(character) {
-            log::warn!("print queue full; dropping string");
+            log::warn!("terminal character queue full; dropping character");
         } else {
-            PRINT_WAKER.wake();
+            TERM_WAKER.wake();
         }
-    } else { }
+    } else {
+        log::warn!("terminal character queue uninitialized")
+    }
 }
 
 pub struct CharacterStream {
@@ -24,7 +26,7 @@ pub struct CharacterStream {
 
 impl CharacterStream {
     pub fn new() -> Self {
-        PRINT_QUEUE.try_init_once(|| ArrayQueue::new(1000))
+        TERM_QUEUE.try_init_once(|| ArrayQueue::new(1000))
             .expect("CharacterStream::new should be called once");
         CharacterStream { _private: () }
     }
@@ -34,17 +36,17 @@ impl Stream for CharacterStream {
     type Item = char;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<char>> {
-        let queue = PRINT_QUEUE.try_get().expect("character queue should be initialized by now");
+        let queue = TERM_QUEUE.try_get().expect("terminal character queue should be initialized by now");
 
         // fast path
         if let Ok(character) = queue.pop() {
             return Poll::Ready(Some(character));
         }
 
-        PRINT_WAKER.register(&cx.waker());
+        TERM_WAKER.register(&cx.waker());
         match queue.pop() {
             Ok(character) => {
-                PRINT_WAKER.take();
+                TERM_WAKER.take();
                 Poll::Ready(Some(character))
             }
             Err(crossbeam_queue::PopError) => Poll::Pending,
@@ -54,10 +56,10 @@ impl Stream for CharacterStream {
 
 pub async fn print_screenbuffer() {
     let mut stream = CharacterStream::new();
-    let mut screenbuffer = Screenbuffer::new();
+    let mut textbuffer = Textbuffer::new();
     USE_SCREENBUFFER.try_init_once(|| true).expect("USE_SCREENBUFFER should be initialized once");
     log::debug!("screenbuffer initialized");
     while let Some(character) = stream.next().await {
-        screenbuffer.write_byte(character as u8);
+        textbuffer.write_byte(character as u8);
     }
 }

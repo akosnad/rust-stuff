@@ -11,7 +11,16 @@ impl log::Log for KernelLogger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             match record.level() {
-                Level::Debug | Level::Trace => {
+                Level::Trace => {
+                    serial_println!(
+                        "[{} from {}:{}] {}",
+                        record.level(),
+                        record.file().unwrap_or("unknown source"),
+                        record.line().unwrap_or_default(),
+                        record.args()
+                    );
+                }
+                Level::Debug => {
                     serial_println!(
                         "[{} from {}:{}] {}",
                         record.level(),
@@ -42,7 +51,7 @@ static LOGGER: KernelLogger = KernelLogger;
 
 #[cfg(debug_assertions)]
 pub fn init() -> Result<(), SetLoggerError> {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Debug))
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::max()))
 }
 
 #[cfg(not(debug_assertions))]

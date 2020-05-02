@@ -4,7 +4,6 @@ use lazy_static::lazy_static;
 use pic8259_simple::ChainedPics;
 use spin;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
-use log::trace;
 
 #[cfg(test)]
 use crate::serial_println;
@@ -53,7 +52,7 @@ lazy_static! {
 }
 
 pub fn init_idt() {
-    trace!("loading IDT: {:?}", IDT);
+    log::trace!("loading IDT: {:?}", IDT);
     IDT.load();
 }
 

@@ -1,5 +1,4 @@
 use lazy_static::lazy_static;
-use log::trace;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::VirtAddr;
@@ -47,7 +46,7 @@ pub fn init() {
     use x86_64::instructions::segmentation::set_cs;
     use x86_64::instructions::tables::load_tss;
 
-    trace!("loading GDT: {:?}", GDT);
+    log::trace!("loading GDT: {:?}", GDT);
     GDT.0.load();
     unsafe {
         set_cs(GDT.1.code_selector);
