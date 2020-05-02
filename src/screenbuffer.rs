@@ -1,6 +1,7 @@
 use crate::vga::*;
 use core::fmt;
 use alloc::string::String;
+use conquer_once::spin::OnceCell;
 
 #[derive(Clone, Copy)]
 struct Line {
@@ -8,6 +9,8 @@ struct Line {
 }
 
 const SCREENBUFFER_SCROLLBACK_ROWS: usize = 1000;
+
+pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
 #[repr(u8)]
@@ -25,7 +28,7 @@ pub struct Screenbuffer {
 
 impl Screenbuffer {
     pub fn new() -> Self {
-        Self {
+        let mut screenbuffer = Self {
             scrollback: [ Line {
                 chars: [ScreenChar {
                     ascii_character: b' ',
@@ -35,23 +38,17 @@ impl Screenbuffer {
             col: 0,
             row: 0,
             scroll_row: 0,
-        }
+        };
+        screenbuffer.scroll_to(0);
+        screenbuffer
     }
 
-    fn scroll(&mut self, lines: usize, down: bool) {
+    fn scroll_to(&mut self, row: usize) {
         let mut writer = WRITER.lock();
-        if down {
-            self.scroll_row += lines;
-            if self.scroll_row > SCREENBUFFER_SCROLLBACK_ROWS {
-                self.scroll_row = SCREENBUFFER_SCROLLBACK_ROWS;
-            }
-            writer.new_line();
-        } else {
-            if self.scroll_row.checked_sub(lines) != None {
-                self.scroll_row -= lines;
-            } else { self.scroll_row = 0; }
-        }
-
+        self.scroll_row = if row > SCREENBUFFER_SCROLLBACK_ROWS - BUFFER_HEIGHT { 
+            SCREENBUFFER_SCROLLBACK_ROWS - BUFFER_HEIGHT
+        } else { row };
+        
         writer.move_cursor(0, 0);
         for line in self.scrollback[self.scroll_row .. self.scroll_row + BUFFER_HEIGHT].iter() {
             for character in line.chars.iter() {
@@ -61,6 +58,30 @@ impl Screenbuffer {
         if self.row.checked_sub(self.scroll_row) != None {
             writer.move_cursor(self.col, self.row - self.scroll_row);
         }
+    }
+
+    fn scroll(&mut self, lines: usize, down: bool) {
+        let mut new_scroll_row = self.scroll_row;
+        if down {
+            new_scroll_row += lines;
+            if new_scroll_row > SCREENBUFFER_SCROLLBACK_ROWS {
+                new_scroll_row = SCREENBUFFER_SCROLLBACK_ROWS;
+            }
+        } else {
+            if new_scroll_row.checked_sub(lines) != None {
+                new_scroll_row -= lines;
+            } else { new_scroll_row = 0; }
+        }
+        self.scroll_to(new_scroll_row);
+    }
+
+    fn focus_cursor(&mut self) {
+        let mut new_scroll_row = 0;
+        if self.row > BUFFER_HEIGHT - 1{
+            new_scroll_row = self.row - BUFFER_HEIGHT + 1;
+        }
+
+        self.scroll_to(new_scroll_row);
     }
 
     fn new_line(&mut self) {
@@ -84,17 +105,19 @@ impl Screenbuffer {
                     self.new_line();
                 }
 
+                if self.row >= self.scroll_row + BUFFER_HEIGHT || self.row < self.scroll_row {
+                    self.focus_cursor();
+                }
+
                 self.scrollback[self.row].chars[self.col] = ScreenChar {
                     ascii_character: byte,
                     color_code: ColorCode::default(),
                 };
                 self.col += 1;
 
-                if self.scroll_row <= self.row && self.row < self.scroll_row + BUFFER_HEIGHT {
-                    x86_64::instructions::interrupts::without_interrupts(|| {
-                        WRITER.lock().write_byte(byte);
-                    });
-                }
+                x86_64::instructions::interrupts::without_interrupts(|| {
+                    WRITER.lock().write_byte(byte);
+                });
             }
         }
     }
@@ -115,18 +138,24 @@ impl fmt::Write for Screenbuffer {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    let mut string = String::new();
-    fmt::write(&mut string, args).expect("error converting fmt::Arguments to String");
-    for character in string.chars() {
-        crate::task::print::add_char(character);
+    if USE_SCREENBUFFER.try_get() == Ok(&true) {
+        let mut string = String::new();
+        fmt::write(&mut string, args).expect("error converting fmt::Arguments to String");
+        for character in string.chars() {
+            crate::task::print::add_char(character);
+        }
+    } else {
+        crate::vga::_print(args);
     }
 }
 
+#[cfg(not(test))]
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::screenbuffer::_print(format_args!($($arg)*)));
 }
 
+#[cfg(not(test))]
 #[macro_export]
 macro_rules! println {
     () => ($crate::print!("\n"));

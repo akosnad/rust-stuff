@@ -3,7 +3,7 @@ use crossbeam_queue::ArrayQueue;
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::stream::{Stream, StreamExt};
 use futures_util::task::AtomicWaker;
-use crate::screenbuffer::Screenbuffer;
+use crate::screenbuffer::{Screenbuffer, USE_SCREENBUFFER};
 
 static PRINT_QUEUE: OnceCell<ArrayQueue<char>> = OnceCell::uninit();
 static PRINT_WAKER: AtomicWaker = AtomicWaker::new();
@@ -55,7 +55,8 @@ impl Stream for CharacterStream {
 pub async fn print_screenbuffer() {
     let mut stream = CharacterStream::new();
     let mut screenbuffer = Screenbuffer::new();
-
+    USE_SCREENBUFFER.try_init_once(|| true).expect("USE_SCREENBUFFER should be initialized once");
+    log::debug!("screenbuffer initialized");
     while let Some(character) = stream.next().await {
         screenbuffer.write_byte(character as u8);
     }

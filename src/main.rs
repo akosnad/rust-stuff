@@ -8,7 +8,7 @@ extern crate alloc;
 
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
-use rust_stuff::{hlt_loop, init, println, serial_println};
+use rust_stuff::init;
 use rust_stuff::task::{Task, executor::Executor, keyboard, print};
 
 entry_point!(kernel_main);
@@ -36,10 +36,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    serial_println!("{}", info);
-    println!("{}", info);
+    rust_stuff::serial_println!("{}", info);
+    rust_stuff::println!("{}", info);
     x86_64::instructions::interrupts::disable();
-    hlt_loop();
+    rust_stuff::hlt_loop();
 }
 
 #[cfg(test)]

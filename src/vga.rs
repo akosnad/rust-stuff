@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
+use core::fmt;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +118,11 @@ impl TextMode {
             color_code: ColorCode::default(),
         })
     }
+    pub fn write_string(&mut self, s: &str) {
+        for c in s.chars() {
+            self.write_byte(c as u8);
+        }
+    }
     pub fn new_line(&mut self) {
         if self.row == BUFFER_HEIGHT - 1 {
             for row in 1..BUFFER_HEIGHT {
@@ -134,6 +140,13 @@ impl TextMode {
     }
 }
 
+impl fmt::Write for TextMode {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
+    }
+}
+
 lazy_static! {
     pub static ref WRITER: Mutex<TextMode> = Mutex::new(TextMode {
         col: 0,
@@ -144,7 +157,6 @@ lazy_static! {
 }
 
 #[doc(hidden)]
-#[cfg(test)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
@@ -155,7 +167,21 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 #[cfg(test)]
-use crate::{serial_print, serial_println, print, println};
+use crate::{serial_print, serial_println, println};
+
+#[cfg(test)]
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::vga::_print(format_args!($($arg)*)));
+}
+
+#[cfg(test)]
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
 
 #[test_case]
 fn test_println_simple() {

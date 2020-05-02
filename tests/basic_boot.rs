@@ -10,7 +10,6 @@ use rust_stuff::{hlt_loop, println, serial_print, serial_println};
 #[no_mangle] // don't mangle the name of this function
 pub extern "C" fn _start() -> ! {
     test_main();
-
     hlt_loop();
 }
 
