@@ -1,6 +1,10 @@
 #![no_std]
 #![no_main]
 
+extern crate alloc;
+extern crate rlibc;
+
+
 use core::panic::PanicInfo;
 use rust_stuff::{exit_qemu, hlt_loop, serial_print, serial_println, QemuExitCode};
 

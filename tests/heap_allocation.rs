@@ -5,12 +5,15 @@
 #![reexport_test_harness_main = "test_main"]
 
 extern crate alloc;
+extern crate rlibc;
 
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use rust_stuff::hlt_loop;
 
 entry_point!(main);
+
+pub const HEAP_SIZE: usize = 1024 * 16;
 
 fn main(boot_info: &'static BootInfo) -> ! {
     use rust_stuff::allocator;
@@ -19,7 +22,7 @@ fn main(boot_info: &'static BootInfo) -> ! {
     rust_stuff::init();
     let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
-    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
+    allocator::init_heap(&mut mapper, HEAP_SIZE, &mut frame_allocator).expect("heap initialization failed");
 
     test_main();
     hlt_loop();
@@ -62,8 +65,6 @@ fn many_boxes() {
     }
     serial_println!("[ok]");
 }
-
-use rust_stuff::allocator::HEAP_SIZE;
 
 #[test_case]
 fn many_boxes_long_lived() {

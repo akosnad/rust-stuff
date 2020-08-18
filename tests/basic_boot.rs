@@ -4,6 +4,9 @@
 #![test_runner(rust_stuff::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+extern crate alloc;
+extern crate rlibc;
+
 use core::panic::PanicInfo;
 use rust_stuff::{hlt_loop, println, serial_print, serial_println};
 

@@ -10,6 +10,7 @@
 #![feature(wake_trait)]
 
 extern crate alloc;
+extern crate rlibc;
 
 pub mod allocator;
 pub mod gdt;
