@@ -5,6 +5,7 @@
 #![reexport_test_harness_main = "test_main"]
 
 extern crate alloc;
+extern crate rlibc;
 
 use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
