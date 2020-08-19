@@ -17,6 +17,8 @@ pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
 pub enum EscapeChar {
     ScrollUp = 1,
     ScrollDown,
+    ScrollHome,
+    ScrollEnd,
 }
 
 pub struct Textbuffer {
@@ -107,6 +109,8 @@ impl Textbuffer {
             b'\n' => self.new_line(),
             byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
             byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
+            byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
+            byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
             byte => {
                 if self.col >= BUFFER_WIDTH {
                     self.new_line();
