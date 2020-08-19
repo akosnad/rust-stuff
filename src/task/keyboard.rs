@@ -67,6 +67,7 @@ pub async fn print_keypresses() {
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
+                    DecodedKey::RawKey(KeyCode::F12) => { log::trace!("F12"); print!("F12") }, // For manually debugging system time
                     DecodedKey::Unicode(character) => print!("{}", character),
                     DecodedKey::RawKey(KeyCode::PageUp) => print!("{}", EscapeChar::ScrollUp as u8 as char),
                     DecodedKey::RawKey(KeyCode::PageDown) => print!("{}", EscapeChar::ScrollDown as u8 as char),

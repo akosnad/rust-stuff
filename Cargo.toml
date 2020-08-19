@@ -51,3 +51,8 @@ default-features = false
 version = "0.3"
 default-features = false
 features = ["alloc"]
+
+[dependencies.crossbeam-utils]
+version = "0.7"
+default-features = false
+features = ["alloc"]

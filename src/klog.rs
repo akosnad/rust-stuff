@@ -13,26 +13,29 @@ impl log::Log for KernelLogger {
             match record.level() {
                 Level::Trace => {
                     serial_println!(
-                        "[{} from {}:{}] {}",
+                        "[{} from {:>25}:{:<3} at {:>5}] {}",
                         record.level(),
                         record.file().unwrap_or("unknown source"),
                         record.line().unwrap_or_default(),
+                        crate::time::get(),
                         record.args()
                     );
                 }
                 Level::Debug => {
                     serial_println!(
-                        "[{} from {}:{}] {}",
+                        "[{} from {:>25}:{:<3} at {:>5}] {}",
                         record.level(),
                         record.file().unwrap_or("unknown source"),
                         record.line().unwrap_or_default(),
+                        crate::time::get(),
                         record.args()
                     );
                     println!(
-                        "[{} from {}:{}] {}",
+                        "[{} from {:>25}:{:<3} at {:>5}] {}",
                         record.level(),
                         record.file().unwrap_or("unknown source"),
                         record.line().unwrap_or_default(),
+                        crate::time::get(),
                         record.args()
                     );
                 },

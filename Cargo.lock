@@ -164,6 +164,7 @@ dependencies = [
  "bootloader",
  "conquer-once",
  "crossbeam-queue",
+ "crossbeam-utils",
  "futures-util",
  "lazy_static",
  "linked_list_allocator",
