@@ -1,4 +1,5 @@
-use crate::vga::*;
+use super::*;
+use super::writer::*;
 use core::fmt;
 use alloc::string::String;
 use conquer_once::spin::OnceCell;
@@ -158,14 +159,14 @@ pub fn _print(args: fmt::Arguments) {
             crate::task::term::add_char(character);
         }
     } else {
-        crate::vga::_print(args);
+        crate::vga::writer::_print(args);
     }
 }
 
 #[cfg(not(test))]
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::term::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::vga::term::_print(format_args!($($arg)*)));
 }
 
 #[cfg(not(test))]

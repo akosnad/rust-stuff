@@ -3,7 +3,7 @@ use crossbeam_queue::ArrayQueue;
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::stream::{Stream, StreamExt};
 use futures_util::task::AtomicWaker;
-use crate::term::{Textbuffer, USE_SCREENBUFFER};
+use crate::vga::term::{Textbuffer, USE_SCREENBUFFER};
 
 static TERM_QUEUE: OnceCell<ArrayQueue<char>> = OnceCell::uninit();
 static TERM_WAKER: AtomicWaker = AtomicWaker::new();

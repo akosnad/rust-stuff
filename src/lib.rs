@@ -19,7 +19,6 @@ pub mod klog;
 pub mod memory;
 pub mod serial;
 pub mod vga;
-pub mod term;
 pub mod task;
 pub mod time;
 
