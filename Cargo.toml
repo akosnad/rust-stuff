@@ -33,6 +33,7 @@ pic8259_simple = "0.2.0"
 pc-keyboard = "0.5.1"
 linked_list_allocator="0.8"
 log = {version = "0.4.11", default-features = false }
+vga = "0.2.4"
 
 [dependencies.lazy_static]
 version = "1.4.0"

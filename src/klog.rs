@@ -1,5 +1,14 @@
-use crate::{println, serial_println};
-use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
+use crate::serial_println;
+use log::{LevelFilter, Metadata, Record, SetLoggerError};
+use crate::textbuffer::Textbuffer;
+use spin::Mutex;
+use core::fmt;
+use lazy_static::lazy_static;
+use alloc::string::String;
+
+lazy_static! {
+    static ref LOG_BUFFER: Mutex<Textbuffer> = Mutex::new(Textbuffer::new());
+}
 
 struct KernelLogger;
 
@@ -10,44 +19,31 @@ impl log::Log for KernelLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            match record.level() {
-                Level::Trace => {
-                    serial_println!(
-                        "[{} from {:>25}:{:<3} at {:>5}] {}",
-                        record.level(),
-                        record.file().unwrap_or("unknown source"),
-                        record.line().unwrap_or_default(),
-                        crate::time::get(),
-                        record.args()
-                    );
-                }
-                Level::Debug => {
-                    serial_println!(
-                        "[{} from {:>25}:{:<3} at {:>5}] {}",
-                        record.level(),
-                        record.file().unwrap_or("unknown source"),
-                        record.line().unwrap_or_default(),
-                        crate::time::get(),
-                        record.args()
-                    );
-                    println!(
-                        "[{} from {:>25}:{:<3} at {:>5}] {}",
-                        record.level(),
-                        record.file().unwrap_or("unknown source"),
-                        record.line().unwrap_or_default(),
-                        crate::time::get(),
-                        record.args()
-                    );
-                },
-                _ => {
-                    serial_println!("[{}] {}", record.level(), record.args());
-                    println!("[{}] {}", record.level(), record.args());
-                },
+                let mut log_buffer = LOG_BUFFER.lock();
+                let mut string = String::new();
+                fmt::write(&mut string, format_args!(
+                    "[{} from {:>25}:{:<3} at {:>5}] {}",
+                    record.level(),
+                    record.file().unwrap_or("unknown source"),
+                    record.line().unwrap_or_default(),
+                    crate::time::get(),
+                    record.args()
+                )).expect("error converting fmt::Arguments to String");
+                log_buffer.write_string(&string);
+                serial_println!(
+                    "[{} from {:>25}:{:<3} at {:>5}] {}",
+                    record.level(),
+                    record.file().unwrap_or("unknown source"),
+                    record.line().unwrap_or_default(),
+                    crate::time::get(),
+                    record.args()
+                );
             }
         }
-    }
 
-    fn flush(&self) {}
+    fn flush(&self) {
+        LOG_BUFFER.lock().flush();
+    }
 }
 
 static LOGGER: KernelLogger = KernelLogger;

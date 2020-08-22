@@ -21,6 +21,7 @@ pub mod serial;
 pub mod vga;
 pub mod task;
 pub mod time;
+pub mod textbuffer;
 
 use core::panic::PanicInfo;
 
@@ -83,7 +84,13 @@ entry_point!(test_kernel_main);
 
 /// Entry point for `cargo xtest`
 #[cfg(test)]
-fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
+fn test_kernel_main(boot_info: &'static BootInfo) -> ! {
+    use memory::BootInfoFrameAllocator;
+
+    let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    allocator::init_heap(&mut mapper, 1024 * 1024 * 4, &mut frame_allocator).expect("heap initialization failed");
+
     init();
     test_main();
     hlt_loop();

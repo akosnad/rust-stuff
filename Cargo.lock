@@ -14,9 +14,9 @@ checksum = "ed8765909f9009617974ab6b7d332625b320b33c326b1e9321382ef1999b5d56"
 
 [[package]]
 name = "bitflags"
-version = "1.1.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d155346769a6855b86399e9bc3814ab343cd3d62c7e985113d46a0ec3c281fd"
+checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
 name = "bootloader"
@@ -70,6 +70,12 @@ dependencies = [
  "autocfg",
  "cfg-if",
 ]
+
+[[package]]
+name = "font8x8"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44226c40489fb1d602344a1d8f1b544570c3435e396dda1eda7b5ef010d8f1be"
 
 [[package]]
 name = "futures-core"
@@ -131,6 +137,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-traits"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac267bcc07f48ee5f8935ab0d24f316fb722d7a1292e2913f0cc196b29ffd611"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "pc-keyboard"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -174,6 +189,7 @@ dependencies = [
  "rlibc",
  "spin",
  "uart_16550",
+ "vga",
  "volatile",
  "x86_64",
 ]
@@ -206,6 +222,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e58fc40dc1712664fc9b0a7bd8ca2f21ab49960924fb245a80a05e1e92f3dfe9"
 dependencies = [
  "bitflags",
+ "x86_64",
+]
+
+[[package]]
+name = "vga"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ea69284e146b245a28632fa715556a86a3c17f29c0fd7ba7fb5b477808c9915"
+dependencies = [
+ "bitflags",
+ "conquer-once",
+ "font8x8",
+ "num-traits",
+ "spinning_top",
  "x86_64",
 ]
 

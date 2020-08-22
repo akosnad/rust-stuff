@@ -18,12 +18,12 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rust_stuff::memory::{self, BootInfoFrameAllocator};
     use rust_stuff::task::{Task, executor::Executor, keyboard, term};
 
-    crate::init();
-
     let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
-
+    
     allocator::init_heap(&mut mapper, 1024 * 1024 * 4, &mut frame_allocator).expect("heap initialization failed");
+    
+    crate::init();
 
     #[cfg(test)]
     test_main();
