@@ -45,6 +45,23 @@ impl Textbuffer {
         self.row = 0;
     }
 
+    pub fn from_buf(buf: Vec<Vec<char>>) -> Vec<BufferLine> {
+        let mut lines = Vec::<BufferLine>::new();
+        for i in 0..buf.len() {
+            let mut line = BufferLine {
+                chars: Vec::new(),
+            };
+            for j in 0..buf[i].len() {
+                line.chars.push(BufferCharacter {
+                    character: buf[i][j],
+                    color: BufferCharacter::default_color(),
+                });
+            }
+            lines.push(line);
+        }
+        lines
+    }
+
     pub fn get_lines(&self, from: usize, len: usize) -> Vec<BufferLine> {
         if from + len > self.lines.len() {
             let mut lines = Vec::<BufferLine>::new();

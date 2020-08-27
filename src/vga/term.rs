@@ -5,6 +5,7 @@ use alloc::string::String;
 use conquer_once::spin::OnceCell;
 use crate::textbuffer::Textbuffer;
 use spin::Mutex;
+use num_enum::FromPrimitive;
 
 pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
 
@@ -21,11 +22,14 @@ pub enum EscapeChar {
     ScrollEnd,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug, FromPrimitive)]
 #[repr(u8)]
 pub enum VirtualTerminals {
     KernelLog = 0xF0,
     Console,
+    ScreenTest,
+    #[num_enum(default)]
+    Unknown,
 }
 
 pub struct Term {
@@ -60,6 +64,23 @@ impl Term {
                 let (x, y) = self.get_cursor();
                 writer.move_cursor(x, y);
             },
+            VirtualTerminals::ScreenTest => {
+                writer.move_cursor(0, 0);
+                let mut string = String::new();
+                fmt::write(&mut string, format_args!(
+                    "Commit hash: {}\nCommit date: {}\n",
+                    env!("GIT_HASH"),
+                    env!("GIT_HASH_DATE")
+                )).ok();
+                writer.write_string(&string);
+                for i in 0x0..0xff {
+                    if i % 0xf == 0 {
+                        writer.new_line();
+                    }
+                    writer.write_byte(i);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -133,7 +154,14 @@ impl Term {
                 self.row = row;
                 self.col = col;
                 self.focus_cursor();
-            }
+            },
+            VirtualTerminals::ScreenTest => {
+                self.col = 0;
+                self.row = 0;
+                self.scroll_row = 0;
+                self.update_screen();
+            },
+            _ => {}
         }
     }
 
@@ -141,13 +169,14 @@ impl Term {
         match self.active_term {
             VirtualTerminals::Console => {
                 match byte {
-                    byte if byte == VirtualTerminals::KernelLog as u8 => self.change_focus(VirtualTerminals::KernelLog),
-                    byte if byte == VirtualTerminals::Console as u8 => self.change_focus(VirtualTerminals::Console),
+                    byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
                     byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
                     byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
                     byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
                     byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
                     b'\n' => self.new_line(),
+                    byte if byte == 0x08 => log::trace!("Backspace"),
+                    byte if byte == 0x00 => {},
                     byte => {
                         if self.col >= BUFFER_WIDTH {
                             self.new_line();
@@ -164,15 +193,23 @@ impl Term {
             }
             VirtualTerminals::KernelLog => {
                 match byte {
-                    byte if byte == VirtualTerminals::KernelLog as u8 => self.change_focus(VirtualTerminals::KernelLog),
-                    byte if byte == VirtualTerminals::Console as u8 => self.change_focus(VirtualTerminals::Console),
+                    byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
                     byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
                     byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
                     byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
                     byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
+                    byte if byte == 0x08 => log::trace!("Backspace"),
+                    byte if byte == 0x00 => self.update_screen(),
                     _ => {},
                 }
-            }
+            },
+            VirtualTerminals::ScreenTest => {
+                match byte {
+                    byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
+                    _ => {}
+                }
+        },
+            _ => {}
         }
     }
 

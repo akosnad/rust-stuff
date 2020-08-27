@@ -72,6 +72,7 @@ pub async fn process_keypresses() {
                     DecodedKey::RawKey(KeyCode::End) => super::term::add_char(EscapeChar::ScrollEnd as u8 as char),
                     DecodedKey::RawKey(KeyCode::F1) => super::term::add_char(VirtualTerminals::KernelLog as u8 as char),
                     DecodedKey::RawKey(KeyCode::F2) => super::term::add_char(VirtualTerminals::Console as u8 as char),
+                    DecodedKey::RawKey(KeyCode::F12) => super::term::add_char(VirtualTerminals::ScreenTest as u8 as char),
                     DecodedKey::Unicode(character) => super::term::add_char(character),
                     DecodedKey::RawKey(key) => super::term::add_char(key as u8 as char),
                 }
