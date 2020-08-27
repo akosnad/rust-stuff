@@ -5,9 +5,6 @@ use alloc::string::String;
 use conquer_once::spin::OnceCell;
 use crate::textbuffer::Textbuffer;
 use spin::Mutex;
-use pc_keyboard::{DecodedKey, KeyCode};
-
-const SCREENBUFFER_SCROLLBACK_ROWS: usize = 1000;
 
 pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
 
@@ -54,18 +51,32 @@ impl Term {
         let mut writer = WRITER.lock();
         match self.active_term {
             VirtualTerminals::Console => {
-                writer.print_textbuffer(&self.console.lock().get_lines(self.scroll_row, BUFFER_HEIGHT))
+                writer.print_textbuffer(&self.console.lock().get_lines(self.scroll_row, BUFFER_HEIGHT));
+                let (x, y) = self.get_cursor();
+                writer.move_cursor(x, y);
             },
             VirtualTerminals::KernelLog => {
-                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, BUFFER_HEIGHT))
+                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, BUFFER_HEIGHT));
+                let (x, y) = self.get_cursor();
+                writer.move_cursor(x, y);
             },
         }
     }
 
+    fn get_cursor(&self) -> (usize, usize) {
+        let row;
+        if self.row.checked_sub(self.scroll_row) != None {
+            row = self.row - self.scroll_row;
+        } else if self.scroll_row + BUFFER_HEIGHT < self.row {
+            row = self.row;
+        } else {
+            row = BUFFER_HEIGHT + 1; // Offscreen
+        }
+        (self.col, row)
+    }
+
     fn scroll_to(&mut self, row: usize) {
-        self.scroll_row = if row > SCREENBUFFER_SCROLLBACK_ROWS - BUFFER_HEIGHT { 
-            SCREENBUFFER_SCROLLBACK_ROWS - BUFFER_HEIGHT
-        } else { row };
+        self.scroll_row = row;
         self.update_screen();
     }
 
@@ -73,9 +84,6 @@ impl Term {
         let mut new_scroll_row = self.scroll_row;
         if down {
             new_scroll_row += lines;
-            if new_scroll_row > SCREENBUFFER_SCROLLBACK_ROWS {
-                new_scroll_row = SCREENBUFFER_SCROLLBACK_ROWS;
-            }
         } else {
             if new_scroll_row.checked_sub(lines) != None {
                 new_scroll_row -= lines;
@@ -104,7 +112,8 @@ impl Term {
         match self.active_term {
             VirtualTerminals::Console => {
                 self.console.lock().new_line();
-                // WRITER.lock().new_line();
+                let (x, y) = self.get_cursor();
+                WRITER.lock().move_cursor(x, y);
             },
             _ => {}
         }
@@ -112,8 +121,20 @@ impl Term {
     
     pub fn change_focus(&mut self, virtual_term: VirtualTerminals) {
         self.active_term = virtual_term;
-        self.scroll_row = 0;
-        self.update_screen();
+        match self.active_term {
+            VirtualTerminals::KernelLog => {
+                let (row, col) = crate::klog::LOG_BUFFER.lock().end_coord();
+                self.row = row;
+                self.col = col;
+                self.focus_cursor();
+            },
+            VirtualTerminals::Console => {
+                let (row, col) = self.console.lock().end_coord();
+                self.row = row;
+                self.col = col;
+                self.focus_cursor();
+            }
+        }
     }
 
     pub fn write_byte(&mut self, byte: u8) {
@@ -171,14 +192,10 @@ impl fmt::Write for Term {
 
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    if USE_SCREENBUFFER.try_get() == Ok(&true) {
-        let mut string = String::new();
-        fmt::write(&mut string, args).expect("error converting fmt::Arguments to String");
-        for character in string.chars() {
-            crate::task::term::add_char(character);
-        }
-    } else {
-        crate::vga::writer::_print(args);
+    let mut string = String::new();
+    fmt::write(&mut string, args).expect("error converting fmt::Arguments to String");
+    for character in string.chars() {
+        crate::task::term::add_char(character);
     }
 }
 

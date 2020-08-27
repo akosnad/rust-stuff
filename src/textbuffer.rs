@@ -59,6 +59,10 @@ impl Textbuffer {
         }
     }
 
+    pub fn end_coord(&self) -> (usize, usize) {
+        (self.row, self.lines[self.row].chars.len())
+    }
+
     pub fn write_char_color(&mut self, character: char, color: TextModeColor) {
         let buffer_character = BufferCharacter {
             character: character,
