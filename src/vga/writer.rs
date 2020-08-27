@@ -1,4 +1,5 @@
 use super::*;
+use crate::textbuffer::BufferLine;
 
 #[repr(transparent)]
 struct Buffer {
@@ -54,7 +55,9 @@ impl TextMode {
                     self.new_line();
                 }
 
-                self.buffer.chars[self.row][self.col].write(*character);
+                x86_64::instructions::interrupts::without_interrupts(|| {
+                    self.buffer.chars[self.row][self.col].write(*character);
+                });
                 self.col += 1;
                 self.update_cursor();
             }
@@ -85,6 +88,31 @@ impl TextMode {
         }
         self.col = 0;
         self.update_cursor();
+    }
+
+    pub fn print_textbuffer(&mut self, buf: &[BufferLine]) {
+        for row in 0..BUFFER_HEIGHT {
+            if row < buf.len() {
+                for col in 0..BUFFER_WIDTH {
+                    let mut character = b' ';
+                    if col < buf[row].chars.len() {
+                        character = buf[row].chars[col].character as u8;
+                    }
+                    let screen_char = ScreenChar {
+                        ascii_character: character,
+                        color_code: ColorCode::default(),
+                    };
+                    self.buffer.chars[row][col].write(screen_char);
+                }
+            } else {
+                for col in 0..BUFFER_WIDTH {
+                    self.buffer.chars[row][col].write(ScreenChar {
+                        ascii_character: b' ',
+                        color_code: ColorCode::default(),
+                    })
+                }
+            }
+        }
     }
 }
 

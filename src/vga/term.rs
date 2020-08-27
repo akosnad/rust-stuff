@@ -3,15 +3,17 @@ use super::writer::*;
 use core::fmt;
 use alloc::string::String;
 use conquer_once::spin::OnceCell;
-
-#[derive(Clone, Copy)]
-struct Line {
-    chars: [ScreenChar; BUFFER_WIDTH],
-}
+use crate::textbuffer::Textbuffer;
+use spin::Mutex;
+use pc_keyboard::{DecodedKey, KeyCode};
 
 const SCREENBUFFER_SCROLLBACK_ROWS: usize = 1000;
 
 pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
+
+lazy_static! {
+    static ref TERM_BUFFER: Mutex<Textbuffer> = Mutex::new(Textbuffer::new());
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
 #[repr(u8)]
@@ -22,44 +24,41 @@ pub enum EscapeChar {
     ScrollEnd,
 }
 
-pub struct Textbuffer {
-    scrollback: [Line; SCREENBUFFER_SCROLLBACK_ROWS],
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug)]
+#[repr(u8)]
+pub enum VirtualTerminals {
+    KernelLog = 0xF0,
+    Console,
+}
+
+pub struct Term {
+    pub active_term: VirtualTerminals,
+    console: Mutex<Textbuffer>,
     col: usize,
     row: usize,
     scroll_row: usize,
-    pub enable_output: bool,
 }
 
-impl Textbuffer {
+impl Term {
     pub fn new() -> Self {
-        let mut screenbuffer = Textbuffer {
-            scrollback: [ Line {
-                chars: [ScreenChar {
-                    ascii_character: b' ',
-                    color_code: ColorCode::default(),
-                }; BUFFER_WIDTH],
-            }; SCREENBUFFER_SCROLLBACK_ROWS],
+        Self {
+            active_term: VirtualTerminals::Console,
+            console: Mutex::new(Textbuffer::new()),
             col: 0,
             row: 0,
             scroll_row: 0,
-            enable_output: true,
-        };
-        screenbuffer.scroll_to(0);
-        screenbuffer
+        }
     }
 
     pub fn update_screen(&mut self) {
-        if self.enable_output {
-            let mut writer = WRITER.lock();
-            writer.move_cursor(0, 0);
-            for line in self.scrollback[self.scroll_row .. self.scroll_row + BUFFER_HEIGHT].iter() {
-                for character in line.chars.iter() {
-                    writer.write_screen_char(character);
-                }
-            }
-            if self.row.checked_sub(self.scroll_row) != None {
-                writer.move_cursor(self.col, self.row - self.scroll_row);
-            }
+        let mut writer = WRITER.lock();
+        match self.active_term {
+            VirtualTerminals::Console => {
+                writer.print_textbuffer(&self.console.lock().get_lines(self.scroll_row, BUFFER_HEIGHT))
+            },
+            VirtualTerminals::KernelLog => {
+                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, BUFFER_HEIGHT))
+            },
         }
     }
 
@@ -100,37 +99,57 @@ impl Textbuffer {
 
         if self.row >= self.scroll_row + BUFFER_HEIGHT {
             self.scroll(1, true);
-        } else if self.enable_output {
-            WRITER.lock().new_line();
+        }
+
+        match self.active_term {
+            VirtualTerminals::Console => {
+                self.console.lock().new_line();
+                // WRITER.lock().new_line();
+            },
+            _ => {}
         }
     }
     
+    pub fn change_focus(&mut self, virtual_term: VirtualTerminals) {
+        self.active_term = virtual_term;
+        self.scroll_row = 0;
+        self.update_screen();
+    }
+
     pub fn write_byte(&mut self, byte: u8) {
-        match byte {
-            b'\n' => self.new_line(),
-            byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
-            byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
-            byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
-            byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
-            byte => {
-                if self.col >= BUFFER_WIDTH {
-                    self.new_line();
+        match self.active_term {
+            VirtualTerminals::Console => {
+                match byte {
+                    byte if byte == VirtualTerminals::KernelLog as u8 => self.change_focus(VirtualTerminals::KernelLog),
+                    byte if byte == VirtualTerminals::Console as u8 => self.change_focus(VirtualTerminals::Console),
+                    byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
+                    byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
+                    byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
+                    byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
+                    b'\n' => self.new_line(),
+                    byte => {
+                        if self.col >= BUFFER_WIDTH {
+                            self.new_line();
+                        }
+
+                        if self.row >= self.scroll_row + BUFFER_HEIGHT || self.row < self.scroll_row {
+                            self.focus_cursor();
+                        }
+                        self.col += 1;
+                        self.console.lock().write_char(byte as char);
+                        self.update_screen();
+                    }
                 }
-
-                if self.row >= self.scroll_row + BUFFER_HEIGHT || self.row < self.scroll_row {
-                    self.focus_cursor();
-                }
-
-                self.scrollback[self.row].chars[self.col] = ScreenChar {
-                    ascii_character: byte,
-                    color_code: ColorCode::default(),
-                };
-                self.col += 1;
-
-                if self.enable_output {
-                    x86_64::instructions::interrupts::without_interrupts(|| {
-                        WRITER.lock().write_byte(byte);
-                    });
+            }
+            VirtualTerminals::KernelLog => {
+                match byte {
+                    byte if byte == VirtualTerminals::KernelLog as u8 => self.change_focus(VirtualTerminals::KernelLog),
+                    byte if byte == VirtualTerminals::Console as u8 => self.change_focus(VirtualTerminals::Console),
+                    byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
+                    byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
+                    byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
+                    byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
+                    _ => {},
                 }
             }
         }
@@ -143,7 +162,7 @@ impl Textbuffer {
     }
 }
 
-impl fmt::Write for Textbuffer {
+impl fmt::Write for Term {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())

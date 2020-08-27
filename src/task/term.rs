@@ -3,7 +3,7 @@ use crossbeam_queue::ArrayQueue;
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::stream::{Stream, StreamExt};
 use futures_util::task::AtomicWaker;
-use crate::vga::term::{Textbuffer, USE_SCREENBUFFER};
+use crate::vga::term::{Term, USE_SCREENBUFFER};
 
 static TERM_QUEUE: OnceCell<ArrayQueue<char>> = OnceCell::uninit();
 static TERM_WAKER: AtomicWaker = AtomicWaker::new();
@@ -54,12 +54,12 @@ impl Stream for CharacterStream {
     }
 }
 
-pub async fn print_screenbuffer() {
+pub async fn process_buffer() {
     let mut stream = CharacterStream::new();
-    let mut textbuffer = Textbuffer::new();
+    let mut term = Term::new();
     USE_SCREENBUFFER.try_init_once(|| true).expect("USE_SCREENBUFFER should be initialized once");
-    log::debug!("screenbuffer initialized");
+    log::debug!("terminal buffer initialized");
     while let Some(character) = stream.next().await {
-        textbuffer.write_byte(character as u8);
+        term.write_byte(character as u8);
     }
 }

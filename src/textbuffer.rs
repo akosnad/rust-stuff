@@ -2,10 +2,10 @@ use alloc::vec::Vec;
 use vga::colors::{TextModeColor, Color16};
 use core::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct BufferCharacter {
-    character: char,
-    color: TextModeColor,
+    pub character: char,
+    pub color: TextModeColor,
 }
 
 impl BufferCharacter {
@@ -14,14 +14,14 @@ impl BufferCharacter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BufferLine {
     pub chars: Vec<BufferCharacter>,
 }
 
 #[derive(Debug)]
 pub struct Textbuffer {
-    lines: Vec<BufferLine>,
+    pub lines: Vec<BufferLine>,
     row: usize,
 }
 
@@ -45,8 +45,18 @@ impl Textbuffer {
         self.row = 0;
     }
 
-    pub fn get_lines(&self, from: usize, to: usize) -> &[BufferLine] {
-        &self.lines[from .. to]
+    pub fn get_lines(&self, from: usize, len: usize) -> Vec<BufferLine> {
+        if from + len > self.lines.len() {
+            let mut lines = Vec::<BufferLine>::new();
+            for i in from..from + len {
+                if i < self.lines.len() {
+                    lines.push(self.lines[i].clone());
+                }
+            }
+            lines
+        } else {
+            (&self.lines[from .. from + len]).to_vec()
+        }
     }
 
     pub fn write_char_color(&mut self, character: char, color: TextModeColor) {
