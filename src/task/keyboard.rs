@@ -66,10 +66,12 @@ pub async fn process_keypresses() {
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
-                    DecodedKey::RawKey(KeyCode::PageUp) => super::term::add_char(EscapeChar::ScrollUp as u8 as char),
-                    DecodedKey::RawKey(KeyCode::PageDown) => super::term::add_char(EscapeChar::ScrollDown as u8 as char),
+                    DecodedKey::RawKey(KeyCode::ArrowUp) => super::term::add_char(EscapeChar::ScrollUp as u8 as char),
+                    DecodedKey::RawKey(KeyCode::ArrowDown) => super::term::add_char(EscapeChar::ScrollDown as u8 as char),
                     DecodedKey::RawKey(KeyCode::Home) => super::term::add_char(EscapeChar::ScrollHome as u8 as char),
                     DecodedKey::RawKey(KeyCode::End) => super::term::add_char(EscapeChar::ScrollEnd as u8 as char),
+                    DecodedKey::RawKey(KeyCode::ArrowRight) => super::term::add_char(EscapeChar::ScrollRight as u8 as char),
+                    DecodedKey::RawKey(KeyCode::ArrowLeft) => super::term::add_char(EscapeChar::ScrollLeft as u8 as char),
                     DecodedKey::RawKey(KeyCode::F1) => super::term::add_char(VirtualTerminals::KernelLog as u8 as char),
                     DecodedKey::RawKey(KeyCode::F2) => super::term::add_char(VirtualTerminals::Console as u8 as char),
                     DecodedKey::RawKey(KeyCode::F3) => super::term::add_char(VirtualTerminals::GUI as u8 as char),

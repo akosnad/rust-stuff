@@ -20,6 +20,8 @@ pub enum EscapeChar {
     ScrollDown,
     ScrollHome,
     ScrollEnd,
+    ScrollRight,
+    ScrollLeft,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug, FromPrimitive)]
@@ -39,6 +41,7 @@ pub struct Term {
     col: usize,
     row: usize,
     scroll_row: usize,
+    scroll_col: usize,
 }
 
 impl Term {
@@ -49,6 +52,7 @@ impl Term {
             col: 0,
             row: 0,
             scroll_row: 0,
+            scroll_col: 0,
         }
     }
 
@@ -59,21 +63,19 @@ impl Term {
         } else if writer.mode != WriterMode::Text && self.active_term != VirtualTerminals::GUI {
             writer.change_mode(WriterMode::Text);
         }
+        let mut lines: alloc::vec::Vec<crate::textbuffer::BufferLine>;
         match self.active_term {
             VirtualTerminals::Console => {
-                writer.print_textbuffer(&self.console.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1));
-                let (x, y) = self.get_cursor();
-                writer.move_cursor(x, y);
+                lines = self.console.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1);
             },
             VirtualTerminals::KernelLog => {
-                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1));
-                let (x, y) = self.get_cursor();
-                writer.move_cursor(x, y);
+                lines = crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1);
             },
             VirtualTerminals::GUI => {
                 writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, GRAPHICS_SIZE.1));
                 let (x, y) = self.get_cursor();
                 writer.move_cursor(x, y);
+                return;
             }
             VirtualTerminals::ScreenTest => {
                 writer.clear();
@@ -90,9 +92,20 @@ impl Term {
                     }
                     writer.write_byte(i);
                 }
-            }
-            _ => {}
+                return;
+            },
+            _ => { return; }
         }
+        if self.scroll_col > 0 {
+            for line in lines.iter_mut() {
+                if self.scroll_col < line.chars.len() {
+                    line.chars = line.chars.split_off(self.scroll_col);
+                } else { line.chars.clear(); }
+            }
+        }
+        writer.print_textbuffer(&lines);
+        let (x, y) = self.get_cursor();
+        writer.move_cursor(x, y);
     }
 
     fn get_cursor(&self) -> (usize, usize) {
@@ -124,13 +137,34 @@ impl Term {
         self.scroll_to(new_scroll_row);
     }
 
+    fn scroll_to_vert(&mut self, col: usize) {
+        self.scroll_col = col;
+        self.update_screen();
+    }
+
+    fn scroll_vert(&mut self, columns: usize, right: bool) {
+        let mut new_scroll_col = self.scroll_col;
+        if right {
+            new_scroll_col += columns;
+        } else {
+            if new_scroll_col.checked_sub(columns) != None {
+                new_scroll_col -= columns;
+            } else { new_scroll_col = 0; }
+        }
+        self.scroll_to_vert(new_scroll_col);
+    }
+
     fn focus_cursor(&mut self) {
         let mut new_scroll_row = 0;
-        if self.row > TEXTMODE_SIZE.1 - 1{
+        if self.row > TEXTMODE_SIZE.1 - 1 {
             new_scroll_row = self.row - TEXTMODE_SIZE.1 + 1;
         }
-
+        let mut new_scroll_col = 0;
+        if self.col > TEXTMODE_SIZE.0 - 2 {
+            new_scroll_col = self.col - TEXTMODE_SIZE.0 + 2;
+        }
         self.scroll_to(new_scroll_row);
+        self.scroll_to_vert(new_scroll_col);
     }
 
     fn new_line(&mut self) {
@@ -140,6 +174,7 @@ impl Term {
         if self.row >= self.scroll_row + TEXTMODE_SIZE.1 {
             self.scroll(1, true);
         }
+        self.scroll_to_vert(0);
 
         match self.active_term {
             VirtualTerminals::Console => {
@@ -186,21 +221,25 @@ impl Term {
                     byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
                     byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
                     byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
-                    byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
+                    byte if byte == EscapeChar::ScrollHome as u8 => { self.scroll_to(0); self.scroll_to_vert(0); },
                     byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
-                    b'\n' => self.new_line(),
+                    byte if byte == EscapeChar::ScrollRight as u8 => self.scroll_vert(1, true),
+                    byte if byte == EscapeChar::ScrollLeft as u8 => self.scroll_vert(1, false),
                     byte if byte == 0x08 => log::trace!("Backspace"),
                     byte if byte == 0x00 => {},
                     byte => {
-                        if self.col >= TEXTMODE_SIZE.0 {
-                            self.new_line();
-                        }
-
-                        if self.row >= self.scroll_row + TEXTMODE_SIZE.1 || self.row < self.scroll_row {
+                        if self.row >= self.scroll_row + TEXTMODE_SIZE.1
+                            || self.row < self.scroll_row
+                            || self.col >= TEXTMODE_SIZE.0
+                            || self.col < self.scroll_col {
                             self.focus_cursor();
                         }
-                        self.col += 1;
-                        self.console.lock().write_char(byte as char);
+                        if byte == b'\n' {
+                            self.new_line();
+                        } else {
+                            self.col += 1;
+                            self.console.lock().write_char(byte as char);
+                        }
                         self.update_screen();
                     }
                 }
@@ -210,8 +249,10 @@ impl Term {
                     byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
                     byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
                     byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
-                    byte if byte == EscapeChar::ScrollHome as u8 => self.scroll_to(0),
+                    byte if byte == EscapeChar::ScrollHome as u8 => { self.scroll_to(0); self.scroll_to_vert(0); },
                     byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
+                    byte if byte == EscapeChar::ScrollRight as u8 => self.scroll_vert(10, true),
+                    byte if byte == EscapeChar::ScrollLeft as u8 => self.scroll_vert(10, false),
                     byte if byte == 0x08 => log::trace!("Backspace"),
                     byte if byte == 0x00 => self.update_screen(),
                     _ => {},
