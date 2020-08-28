@@ -1,122 +1,143 @@
 use super::*;
 use crate::textbuffer::BufferLine;
+use vga::writers::{Text80x25, Graphics640x480x16, ScreenCharacter, TextWriter, GraphicsWriter};
 
-#[repr(transparent)]
-struct Buffer {
-    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
+enum WriterMode {
+    Text,
+    Graphics
 }
 
-pub struct TextMode {
+pub struct Writer {
+    mode: WriterMode,
+    text: Text80x25,
+    graphics: Graphics640x480x16,
     col: usize,
     row: usize,
-    color_code: ColorCode,
-    buffer: &'static mut Buffer,
 }
 
-impl TextMode {
-    fn clear_row(&mut self, row: usize) {
-        let blank = ScreenChar {
-            ascii_character: b' ',
-            color_code: self.color_code,
-        };
-        for col in 0..BUFFER_WIDTH {
-            self.buffer.chars[row][col].write(blank);
-        }
-    }
-
-    fn update_cursor(&mut self) {
-        use core::convert::TryInto;
-        use x86_64::instructions::port::Port;
-
-        let mut cursor_port_cmd = Port::new(CURSOR_PORT_CMD);
-        let mut cursor_port_data = Port::new(CURSOR_PORT_DATA);
-
-        let pos: u16 = (self.row * BUFFER_WIDTH + self.col).try_into().unwrap();
-        unsafe {
-            cursor_port_cmd.write(CURSOR_CMD_SET_POS_X);
-            cursor_port_data.write(pos & 0xff);
-
-            cursor_port_cmd.write(CURSOR_CMD_SET_POS_Y);
-            cursor_port_data.write((pos >> 8) & 0xff);
+impl Writer {
+    fn change_mode(&mut self, mode: WriterMode) {
+        self.mode = mode;
+        match self.mode {
+            WriterMode::Text => {
+                self.text.set_mode();
+            },
+            WriterMode::Graphics => {
+                self.graphics.set_mode();
+            },
         }
     }
 
     pub fn move_cursor(&mut self, x: usize, y: usize) {
-        // TODO: check x and y ranges
         self.row = y;
         self.col = x;
-        self.update_cursor();
+        match self.mode {
+            WriterMode::Text => self.text.set_cursor_position(x, y),
+            _ => {}
+        }
     }
-    pub fn write_screen_char(&mut self, character: &ScreenChar) {
-        match character.ascii_character {
+
+    fn update_cursor(&mut self) {
+        self.move_cursor(self.col, self.row)
+    }
+
+    pub fn clear(&mut self) {
+        match self.mode {
+            WriterMode::Text => { 
+                let character = ScreenCharacter::new(b' ', DEFAULT_COLOR);
+                self.text.fill_screen(character);
+            },
+            WriterMode::Graphics => self.graphics.clear_screen(Color16::Blue),
+        }
+        self.move_cursor(0, 0);
+    }
+
+    pub fn write_screen_char(&mut self, character: ScreenCharacter) {
+        match character.get_character() {
             b'\n' => self.new_line(),
             _ => {
-                if self.col >= BUFFER_WIDTH {
-                    self.new_line();
+                match self.mode {
+                    WriterMode::Text => {
+                        if self.col >= BUFFER_SIZE.0 {
+                            self.new_line();
+                        }
+                        self.text.write_character(self.col, self.row, character);
+                    },
+                    _ => {},
                 }
-
-                x86_64::instructions::interrupts::without_interrupts(|| {
-                    self.buffer.chars[self.row][self.col].write(*character);
-                });
                 self.col += 1;
                 self.update_cursor();
             }
         }
     }
     pub fn write_byte(&mut self, byte: u8) {
-        self.write_screen_char(&ScreenChar {
-            ascii_character: byte,
-            color_code: ColorCode::default(),
-        })
+        self.write_screen_char(ScreenCharacter::new(byte, DEFAULT_COLOR))
     }
     pub fn write_string(&mut self, s: &str) {
         for c in s.chars() {
             self.write_byte(c as u8);
         }
     }
-    pub fn new_line(&mut self) {
-        if self.row == BUFFER_HEIGHT - 1 {
-            for row in 1..BUFFER_HEIGHT {
-                for col in 0..BUFFER_WIDTH {
-                    let character = self.buffer.chars[row][col].read();
-                    self.buffer.chars[row - 1][col].write(character);
+
+    fn clear_row(&mut self, row: usize) {
+        let character = ScreenCharacter::new(b' ', DEFAULT_COLOR);
+        match self.mode {
+            WriterMode::Text => {
+                for col in 0..BUFFER_SIZE.0 {
+                    self.text.write_character(col, row, character);
                 }
-            }
-            self.clear_row(BUFFER_HEIGHT - 1);
-        } else {
-            self.row += 1;
+            },
+            _ => {}
         }
-        self.col = 0;
-        self.update_cursor();
+    }
+
+    pub fn new_line(&mut self) {
+        match self.mode {
+            WriterMode::Text => {
+                if self.row == BUFFER_SIZE.1 - 1 {
+                    for row in 1..BUFFER_SIZE.1 {
+                        for col in 0..BUFFER_SIZE.0 {
+                            let character = self.text.read_character(col, row);
+                            self.text.write_character(col, row - 1, character);
+                        }
+                    }
+                    self.clear_row(BUFFER_SIZE.1 - 1);
+                } else {
+                    self.row += 1;
+                }
+                self.col = 0;
+                self.update_cursor();
+            },
+            _ => {}
+        }
     }
 
     pub fn print_textbuffer(&mut self, buf: &[BufferLine]) {
-        for row in 0..BUFFER_HEIGHT {
-            if row < buf.len() {
-                for col in 0..BUFFER_WIDTH {
-                    let mut character = b' ';
-                    if col < buf[row].chars.len() {
-                        character = buf[row].chars[col].character as u8;
+        match self.mode {
+            WriterMode::Text => {
+                for row in 0..BUFFER_SIZE.1 {
+                    if row < buf.len() {
+                        for col in 0..BUFFER_SIZE.0 {
+                            let mut character = b' ';
+                            if col < buf[row].chars.len() {
+                                character = buf[row].chars[col].character as u8;
+                            }
+                            let screen_char = ScreenCharacter::new(character, DEFAULT_COLOR);
+                            self.text.write_character(col, row, screen_char);
+                        }
+                    } else {
+                        for col in 0..BUFFER_SIZE.0 {
+                            self.text.write_character(col, row, ScreenCharacter::new(b' ', DEFAULT_COLOR));
+                        }
                     }
-                    let screen_char = ScreenChar {
-                        ascii_character: character,
-                        color_code: ColorCode::default(),
-                    };
-                    self.buffer.chars[row][col].write(screen_char);
                 }
-            } else {
-                for col in 0..BUFFER_WIDTH {
-                    self.buffer.chars[row][col].write(ScreenChar {
-                        ascii_character: b' ',
-                        color_code: ColorCode::default(),
-                    })
-                }
-            }
+            },
+            _ => {}
         }
     }
 }
 
-impl fmt::Write for TextMode {
+impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write_string(s);
         Ok(())
@@ -124,11 +145,12 @@ impl fmt::Write for TextMode {
 }
 
 lazy_static! {
-    pub static ref WRITER: Mutex<TextMode> = Mutex::new(TextMode {
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+        mode: WriterMode::Text,
+        text: Text80x25::new(),
+        graphics: Graphics640x480x16::new(),
         col: 0,
         row: 0,
-        color_code: ColorCode::default(),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
     });
 }
 
