@@ -8,7 +8,7 @@ extern crate alloc;
 extern crate rlibc;
 
 use core::panic::PanicInfo;
-use rust_stuff::{hlt_loop, println, serial_print, serial_println};
+use rust_stuff::{hlt_loop, println};
 use bootloader::BootInfo;
 
 #[no_mangle] // don't mangle the name of this function
@@ -32,7 +32,5 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[test_case]
 fn test_println() {
-    serial_print!("test_println... ");
     println!("test_println output");
-    serial_println!("[ok]");
 }

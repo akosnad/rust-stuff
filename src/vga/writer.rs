@@ -2,13 +2,14 @@ use super::*;
 use crate::textbuffer::BufferLine;
 use vga::writers::{Text80x25, Graphics640x480x16, ScreenCharacter, TextWriter, GraphicsWriter};
 
-enum WriterMode {
+#[derive(PartialEq)]
+pub enum WriterMode {
     Text,
     Graphics
 }
 
 pub struct Writer {
-    mode: WriterMode,
+    pub mode: WriterMode,
     text: Text80x25,
     graphics: Graphics640x480x16,
     col: usize,
@@ -16,13 +17,18 @@ pub struct Writer {
 }
 
 impl Writer {
-    fn change_mode(&mut self, mode: WriterMode) {
+    pub fn change_mode(&mut self, mode: WriterMode) {
         self.mode = mode;
         match self.mode {
             WriterMode::Text => {
+                self.text = Text80x25::new();
+                log::debug!("Switching video mode to: {:?}", self.text);
                 self.text.set_mode();
             },
             WriterMode::Graphics => {
+                self.text = Text80x25::new();
+                self.graphics = Graphics640x480x16::new();
+                log::debug!("Switching video mode to: {:?}", self.graphics);
                 self.graphics.set_mode();
             },
         }
@@ -165,9 +171,6 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 #[cfg(test)]
-use crate::{serial_print, serial_println, println};
-
-#[cfg(test)]
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::vga::writer::_print(format_args!($($arg)*)));
@@ -183,18 +186,14 @@ macro_rules! println {
 
 #[test_case]
 fn test_println_simple() {
-    serial_print!("test_println... ");
     println!("test_println_simple output");
-    serial_println!("[ok]");
 }
 
 #[test_case]
 fn test_println_many() {
-    serial_print!("test_println_many... ");
     for _ in 0..200 {
         println!("test_println_many output");
     }
-    serial_println!("[ok]");
 }
 
 #[test_case]
@@ -202,17 +201,13 @@ fn test_println_output() {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
 
-    serial_print!("test_println_output... ");
-
     let s = "Some test string that fits on a single line";
     interrupts::without_interrupts(|| {
         let mut writer = WRITER.lock();
         writeln!(writer, "\n{}", s).expect("writeln failed");
         for (i, c) in s.chars().enumerate() {
-            let screen_char = writer.buffer.chars[BUFFER_HEIGHT - 2][i].read();
-            assert_eq!(char::from(screen_char.ascii_character), c);
+            let screen_char = writer.text.read_character(i, BUFFER_SIZE.1 - 2);
+            assert_eq!(char::from(screen_char.get_character()), c);
         }
     });
-
-    serial_println!("[ok]");
 }

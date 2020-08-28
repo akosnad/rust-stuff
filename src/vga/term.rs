@@ -27,6 +27,7 @@ pub enum EscapeChar {
 pub enum VirtualTerminals {
     KernelLog = 0xF0,
     Console,
+    GUI,
     ScreenTest,
     #[num_enum(default)]
     Unknown,
@@ -53,6 +54,11 @@ impl Term {
 
     pub fn update_screen(&mut self) {
         let mut writer = WRITER.lock();
+        if writer.mode != WriterMode::Graphics && self.active_term == VirtualTerminals::GUI {
+            writer.change_mode(WriterMode::Graphics);
+        } else if writer.mode != WriterMode::Text && self.active_term != VirtualTerminals::GUI {
+            writer.change_mode(WriterMode::Text);
+        }
         match self.active_term {
             VirtualTerminals::Console => {
                 writer.print_textbuffer(&self.console.lock().get_lines(self.scroll_row, BUFFER_SIZE.1));
@@ -64,6 +70,9 @@ impl Term {
                 let (x, y) = self.get_cursor();
                 writer.move_cursor(x, y);
             },
+            VirtualTerminals::GUI => {
+                
+            }
             VirtualTerminals::ScreenTest => {
                 writer.clear();
                 let mut string = String::new();
@@ -155,6 +164,9 @@ impl Term {
                 self.col = col;
                 self.focus_cursor();
             },
+            VirtualTerminals::GUI => {
+                self.update_screen();
+            }
             VirtualTerminals::ScreenTest => {
                 self.col = 0;
                 self.row = 0;
