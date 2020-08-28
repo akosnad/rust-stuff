@@ -72,10 +72,7 @@ impl Term {
                 lines = crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1);
             },
             VirtualTerminals::GUI => {
-                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, GRAPHICS_SIZE.1));
-                let (x, y) = self.get_cursor();
-                writer.move_cursor(x, y);
-                return;
+                lines = crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, GRAPHICS_SIZE.1);
             }
             VirtualTerminals::ScreenTest => {
                 writer.clear();
@@ -109,7 +106,7 @@ impl Term {
     }
 
     fn get_cursor(&self) -> (usize, usize) {
-        let row;
+        let mut row;
         if self.row.checked_sub(self.scroll_row) != None {
             row = self.row - self.scroll_row;
         } else if self.scroll_row + TEXTMODE_SIZE.1 < self.row {
@@ -117,7 +114,17 @@ impl Term {
         } else {
             row = TEXTMODE_SIZE.1 + 1; // Offscreen
         }
-        (self.col, row)
+        let col;
+        if self.col.checked_sub(self.scroll_col) != None {
+            col = self.col - self.scroll_col;
+        } else if self.scroll_col + TEXTMODE_SIZE.0 < self.col {
+            col = 0;
+            row = TEXTMODE_SIZE.1 +1; // Offscreen
+        } else {
+            col = 0;
+            row = TEXTMODE_SIZE.1 + 1; // Offscreen
+        }
+        (col, row)
     }
 
     fn scroll_to(&mut self, row: usize) {
@@ -261,6 +268,12 @@ impl Term {
             VirtualTerminals::GUI => {
                 match byte {
                     byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
+                    byte if byte == EscapeChar::ScrollDown as u8 => self.scroll(1, true),
+                    byte if byte == EscapeChar::ScrollUp as u8 => self.scroll(1, false),
+                    byte if byte == EscapeChar::ScrollHome as u8 => { self.scroll_to(0); self.scroll_to_vert(0); },
+                    byte if byte == EscapeChar::ScrollEnd as u8 => self.focus_cursor(),
+                    byte if byte == EscapeChar::ScrollRight as u8 => self.scroll_vert(10, true),
+                    byte if byte == EscapeChar::ScrollLeft as u8 => self.scroll_vert(10, false),
                     byte if byte == 0x08 => log::trace!("Backspace"),
                     byte if byte == 0x00 => self.update_screen(),
                     _ => {}

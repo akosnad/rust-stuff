@@ -172,6 +172,7 @@ impl Writer {
                             if col < buf[row].chars.len() {
                                 character = buf[row].chars[col].character;
                             }
+                            self.graphics.draw_character(col * 8, row * 8, 0xFF as char, Color16::Blue);
                             self.graphics.draw_character(col * 8, row * 8, character, Color16::White);
                         }
                     }
