@@ -61,17 +61,19 @@ impl Term {
         }
         match self.active_term {
             VirtualTerminals::Console => {
-                writer.print_textbuffer(&self.console.lock().get_lines(self.scroll_row, BUFFER_SIZE.1));
+                writer.print_textbuffer(&self.console.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1));
                 let (x, y) = self.get_cursor();
                 writer.move_cursor(x, y);
             },
             VirtualTerminals::KernelLog => {
-                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, BUFFER_SIZE.1));
+                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1));
                 let (x, y) = self.get_cursor();
                 writer.move_cursor(x, y);
             },
             VirtualTerminals::GUI => {
-                
+                writer.print_textbuffer(&crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, GRAPHICS_SIZE.1));
+                let (x, y) = self.get_cursor();
+                writer.move_cursor(x, y);
             }
             VirtualTerminals::ScreenTest => {
                 writer.clear();
@@ -97,10 +99,10 @@ impl Term {
         let row;
         if self.row.checked_sub(self.scroll_row) != None {
             row = self.row - self.scroll_row;
-        } else if self.scroll_row + BUFFER_SIZE.1 < self.row {
+        } else if self.scroll_row + TEXTMODE_SIZE.1 < self.row {
             row = self.row;
         } else {
-            row = BUFFER_SIZE.1 + 1; // Offscreen
+            row = TEXTMODE_SIZE.1 + 1; // Offscreen
         }
         (self.col, row)
     }
@@ -124,8 +126,8 @@ impl Term {
 
     fn focus_cursor(&mut self) {
         let mut new_scroll_row = 0;
-        if self.row > BUFFER_SIZE.1 - 1{
-            new_scroll_row = self.row - BUFFER_SIZE.1 + 1;
+        if self.row > TEXTMODE_SIZE.1 - 1{
+            new_scroll_row = self.row - TEXTMODE_SIZE.1 + 1;
         }
 
         self.scroll_to(new_scroll_row);
@@ -135,7 +137,7 @@ impl Term {
         self.row += 1;
         self.col = 0;
 
-        if self.row >= self.scroll_row + BUFFER_SIZE.1 {
+        if self.row >= self.scroll_row + TEXTMODE_SIZE.1 {
             self.scroll(1, true);
         }
 
@@ -190,11 +192,11 @@ impl Term {
                     byte if byte == 0x08 => log::trace!("Backspace"),
                     byte if byte == 0x00 => {},
                     byte => {
-                        if self.col >= BUFFER_SIZE.0 {
+                        if self.col >= TEXTMODE_SIZE.0 {
                             self.new_line();
                         }
 
-                        if self.row >= self.scroll_row + BUFFER_SIZE.1 || self.row < self.scroll_row {
+                        if self.row >= self.scroll_row + TEXTMODE_SIZE.1 || self.row < self.scroll_row {
                             self.focus_cursor();
                         }
                         self.col += 1;
@@ -215,6 +217,14 @@ impl Term {
                     _ => {},
                 }
             },
+            VirtualTerminals::GUI => {
+                match byte {
+                    byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
+                    byte if byte == 0x08 => log::trace!("Backspace"),
+                    byte if byte == 0x00 => self.update_screen(),
+                    _ => {}
+                }
+            }
             VirtualTerminals::ScreenTest => {
                 match byte {
                     byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),

@@ -6,6 +6,7 @@ use vga::colors::{TextModeColor, Color16};
 pub mod term;
 pub mod writer;
 
-static BUFFER_SIZE: (usize, usize) = (80, 25);
+const TEXTMODE_SIZE: (usize, usize) = (80, 25);
+const GRAPHICS_SIZE: (usize, usize) = (80, 60);
 
 pub const DEFAULT_COLOR: TextModeColor = TextModeColor::new(Color16::LightGrey, Color16::Black);
