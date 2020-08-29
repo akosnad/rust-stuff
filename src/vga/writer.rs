@@ -179,6 +179,10 @@ impl Writer {
             }
         }
     }
+
+    pub fn get_graphics_writer(&self) -> &Graphics640x480x16 {
+        &self.graphics
+    }
 }
 
 impl fmt::Write for Writer {

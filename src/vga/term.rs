@@ -6,11 +6,16 @@ use conquer_once::spin::OnceCell;
 use crate::textbuffer::Textbuffer;
 use spin::Mutex;
 use num_enum::FromPrimitive;
+use crate::gui::{window::Window, GuiDrawable};
 
 pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
 
 lazy_static! {
     static ref TERM_BUFFER: Mutex<Textbuffer> = Mutex::new(Textbuffer::new());
+}
+
+lazy_static! {
+    static ref TEST_WINDOW: Window<'static> = Window::new();
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Debug, FromPrimitive)]
@@ -75,7 +80,8 @@ impl Term {
                 lines = crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1);
             },
             VirtualTerminals::GUI => {
-                lines = crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, GRAPHICS_SIZE.1);
+                TEST_WINDOW.draw(writer.get_graphics_writer());
+                return;
             }
             VirtualTerminals::ScreenTest => {
                 writer.clear();
@@ -242,6 +248,7 @@ impl Term {
                 match byte {
                     byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
                     byte if EscapeChar::from(byte) != EscapeChar::Null => self.handle_escape_char(EscapeChar::from(byte)),
+                    byte if byte == 0x00 => self.update_screen(),
                     byte => {
                         if self.row >= self.scroll_row + TEXTMODE_SIZE.1
                             || self.row < self.scroll_row
@@ -271,8 +278,6 @@ impl Term {
             VirtualTerminals::GUI => {
                 match byte {
                     byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
-                    byte if EscapeChar::from(byte) != EscapeChar::Null => self.handle_escape_char(EscapeChar::from(byte)),
-                    byte if byte == 0x08 => log::trace!("Backspace"),
                     byte if byte == 0x00 => self.update_screen(),
                     _ => {}
                 }

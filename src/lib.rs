@@ -22,6 +22,7 @@ pub mod vga;
 pub mod task;
 pub mod time;
 pub mod textbuffer;
+pub mod gui;
 
 use core::panic::PanicInfo;
 
