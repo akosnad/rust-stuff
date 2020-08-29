@@ -59,6 +59,7 @@ pub async fn process_buffer() {
     let mut term = Term::new();
     USE_SCREENBUFFER.try_init_once(|| true).expect("USE_SCREENBUFFER should be initialized once");
     log::debug!("terminal buffer initialized");
+    term.update_screen();
     while let Some(character) = stream.next().await {
         term.write_byte(character as u8);
     }

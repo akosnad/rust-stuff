@@ -4,6 +4,7 @@ use x86_64::{
     },
     VirtAddr,
 };
+use conquer_once::spin::OnceCell;
 
 pub mod bump;
 pub mod linked_list;
@@ -39,6 +40,8 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 
+pub static HEAP_INITIALIZED: OnceCell<bool> = OnceCell::uninit();
+
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
     heap_size: usize,
@@ -64,6 +67,8 @@ pub fn init_heap(
     unsafe {
         ALLOCATOR.lock().init(HEAP_START, heap_size);
     }
+
+    HEAP_INITIALIZED.try_init_once(|| { true }).ok();
 
     Ok(())
 }

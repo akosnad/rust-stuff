@@ -24,15 +24,14 @@ impl Writer {
                 self.text = Text80x25::new();
                 log::debug!("Switching video mode to: {:?}", self.text);
                 self.text.set_mode();
-                self.clear();
             },
             WriterMode::Graphics => {
                 self.graphics = Graphics640x480x16::new();
                 log::debug!("Switching video mode to: {:?}", self.graphics);
                 self.graphics.set_mode();
-                self.clear();
             },
         }
+        self.clear();
     }
 
     pub fn move_cursor(&mut self, x: usize, y: usize) {
@@ -245,7 +244,7 @@ fn test_println_output() {
         let mut writer = WRITER.lock();
         writeln!(writer, "\n{}", s).expect("writeln failed");
         for (i, c) in s.chars().enumerate() {
-            let screen_char = writer.text.read_character(i, BUFFER_SIZE.1 - 2);
+            let screen_char = writer.text.read_character(i, TEXTMODE_SIZE.1 - 2);
             assert_eq!(char::from(screen_char.get_character()), c);
         }
     });

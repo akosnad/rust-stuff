@@ -19,6 +19,15 @@ impl log::Log for KernelLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
+            serial_println!(
+                "[{:<5} from {:>25}:{:<3} at {:>5}] {}",
+                record.level(),
+                record.file().unwrap_or("unknown source"),
+                record.line().unwrap_or_default(),
+                crate::time::get(),
+                record.args()
+            );
+            if let Some(true) = crate::allocator::HEAP_INITIALIZED.get() {
                 let mut log_buffer = LOG_BUFFER.lock();
                 let mut string = String::new();
                 fmt::write(&mut string, format_args!(
@@ -31,16 +40,9 @@ impl log::Log for KernelLogger {
                 )).expect("error converting fmt::Arguments to String");
                 log_buffer.write_string(&string);
                 log_buffer.new_line();
-                serial_println!(
-                    "[{:<5} from {:>25}:{:<3} at {:>5}] {}",
-                    record.level(),
-                    record.file().unwrap_or("unknown source"),
-                    record.line().unwrap_or_default(),
-                    crate::time::get(),
-                    record.args()
-                );
             }
         }
+    }
 
     fn flush(&self) {
         LOG_BUFFER.lock().flush();
