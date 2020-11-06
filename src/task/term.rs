@@ -39,17 +39,17 @@ impl Stream for CharacterStream {
         let queue = TERM_QUEUE.try_get().expect("terminal character queue should be initialized by now");
 
         // fast path
-        if let Ok(character) = queue.pop() {
+        if let Some(character) = queue.pop() {
             return Poll::Ready(Some(character));
         }
 
         TERM_WAKER.register(&cx.waker());
         match queue.pop() {
-            Ok(character) => {
+            Some(character) => {
                 TERM_WAKER.take();
                 Poll::Ready(Some(character))
             }
-            Err(crossbeam_queue::PopError) => Poll::Pending,
+            None => Poll::Pending,
         }
     }
 }
