@@ -22,6 +22,7 @@ pub mod time;
 pub mod textbuffer;
 pub mod gui;
 pub mod mouse;
+pub mod peripheral;
 
 use core::panic::PanicInfo;
 

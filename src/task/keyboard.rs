@@ -3,8 +3,7 @@ use crossbeam_queue::ArrayQueue;
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::stream::{Stream, StreamExt};
 use futures_util::task::AtomicWaker;
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
-use crate::vga::term::{EscapeChar, VirtualTerminals};
+use crate::peripheral::{ISubject, keyboard::Keyboard};
 
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -58,28 +57,11 @@ impl Stream for ScancodeStream {
     }
 }
 
-pub async fn process_keypresses() {
+pub async fn process_keypresses(mut keyboard_subject: Keyboard<'_>) {
     let mut scancodes = ScancodeStream::new();
-    let mut keyboard = Keyboard::new(layouts::Us104Key, ScancodeSet1, HandleControl::Ignore);
     log::debug!("keyboard scancode stream initialized");
     while let Some(scancode) = scancodes.next().await {
-        if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-            if let Some(key) = keyboard.process_keyevent(key_event) {
-                match key {
-                    DecodedKey::RawKey(KeyCode::ArrowUp) => super::term::add_char(EscapeChar::ScrollUp as u8 as char),
-                    DecodedKey::RawKey(KeyCode::ArrowDown) => super::term::add_char(EscapeChar::ScrollDown as u8 as char),
-                    DecodedKey::RawKey(KeyCode::Home) => super::term::add_char(EscapeChar::ScrollHome as u8 as char),
-                    DecodedKey::RawKey(KeyCode::End) => super::term::add_char(EscapeChar::ScrollEnd as u8 as char),
-                    DecodedKey::RawKey(KeyCode::ArrowRight) => super::term::add_char(EscapeChar::ScrollRight as u8 as char),
-                    DecodedKey::RawKey(KeyCode::ArrowLeft) => super::term::add_char(EscapeChar::ScrollLeft as u8 as char),
-                    DecodedKey::RawKey(KeyCode::F1) => super::term::add_char(VirtualTerminals::KernelLog as u8 as char),
-                    DecodedKey::RawKey(KeyCode::F2) => super::term::add_char(VirtualTerminals::Console as u8 as char),
-                    DecodedKey::RawKey(KeyCode::F3) => super::term::add_char(VirtualTerminals::GUI as u8 as char),
-                    DecodedKey::RawKey(KeyCode::F12) => super::term::add_char(VirtualTerminals::ScreenTest as u8 as char),
-                    DecodedKey::Unicode(character) => super::term::add_char(character),
-                    DecodedKey::RawKey(key) => super::term::add_char(key as u8 as char),
-                }
-            }
-        }
+        keyboard_subject.scancode = Some(scancode);
+        keyboard_subject.notify();
     }
 }

@@ -17,6 +17,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rust_stuff::allocator;
     use rust_stuff::memory::{self, BootInfoFrameAllocator};
     use rust_stuff::task::{Task, executor::Executor, keyboard, term};
+    use rust_stuff::peripheral::{keyboard::Keyboard, ISubject};
+    use rust_stuff::vga::term::TERM_INPUT;
 
     crate::init();
     
@@ -29,9 +31,12 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
+    let mut keyboard = Keyboard::new();
+    keyboard.attach(&*TERM_INPUT);
+
     let mut executor = Executor::new();
     executor.spawn(Task::new(term::process_buffer()));
-    executor.spawn(Task::new(keyboard::process_keypresses()));
+    executor.spawn(Task::new(keyboard::process_keypresses(keyboard)));
     executor.run();
 }
 

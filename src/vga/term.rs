@@ -7,11 +7,18 @@ use crate::textbuffer::Textbuffer;
 use spin::Mutex;
 use num_enum::FromPrimitive;
 use crate::gui::{window::Window, GuiDrawable};
+use crate::peripheral::IObserver;
+use pc_keyboard::{DecodedKey, KeyCode};
+
 
 pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
 
 lazy_static! {
     static ref TERM_BUFFER: Mutex<Textbuffer> = Mutex::new(Textbuffer::new());
+}
+
+lazy_static! {
+    pub static ref TERM_INPUT: TermInput = TermInput { _private: () };
 }
 
 lazy_static! {
@@ -295,6 +302,30 @@ impl Term {
     pub fn write_string(&mut self, s: &str) {
         for c in s.chars() {
             self.write_byte(c as u8);
+        }
+    }
+}
+
+pub struct TermInput {
+    _private: (),
+}
+impl IObserver<DecodedKey> for TermInput {
+    fn update(&self, value: &DecodedKey) {
+        use crate::task::term::add_char;
+
+        match *value {
+            DecodedKey::RawKey(KeyCode::ArrowUp) => add_char(EscapeChar::ScrollUp as u8 as char),
+            DecodedKey::RawKey(KeyCode::ArrowDown) => add_char(EscapeChar::ScrollDown as u8 as char),
+            DecodedKey::RawKey(KeyCode::Home) => add_char(EscapeChar::ScrollHome as u8 as char),
+            DecodedKey::RawKey(KeyCode::End) => add_char(EscapeChar::ScrollEnd as u8 as char),
+            DecodedKey::RawKey(KeyCode::ArrowRight) => add_char(EscapeChar::ScrollRight as u8 as char),
+            DecodedKey::RawKey(KeyCode::ArrowLeft) => add_char(EscapeChar::ScrollLeft as u8 as char),
+            DecodedKey::RawKey(KeyCode::F1) => add_char(VirtualTerminals::KernelLog as u8 as char),
+            DecodedKey::RawKey(KeyCode::F2) => add_char(VirtualTerminals::Console as u8 as char),
+            DecodedKey::RawKey(KeyCode::F3) => add_char(VirtualTerminals::GUI as u8 as char),
+            DecodedKey::RawKey(KeyCode::F12) => add_char(VirtualTerminals::ScreenTest as u8 as char),
+            DecodedKey::Unicode(character) => add_char(character),
+            DecodedKey::RawKey(key) => add_char(key as u8 as char),
         }
     }
 }
