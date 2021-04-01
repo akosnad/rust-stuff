@@ -20,7 +20,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     crate::init();
     
-    let mut mapper = unsafe { memory::init(boot_info.physical_memory_offset) };
+    let phys_mem_offset = x86_64::VirtAddr::new(boot_info.physical_memory_offset);
+    let mut mapper = unsafe { memory::init(phys_mem_offset) };
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
     
     allocator::init_heap(&mut mapper, 1024 * 1024 * 4, &mut frame_allocator).expect("heap initialization failed");

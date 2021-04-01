@@ -53,7 +53,7 @@ impl Writer {
                 let character = ScreenCharacter::new(b' ', DEFAULT_COLOR);
                 self.text.fill_screen(character);
             },
-            WriterMode::Graphics => self.graphics.clear_screen(Color16::Blue),
+            WriterMode::Graphics => self.graphics.clear_screen(Color16::Black),
         }
         self.move_cursor(0, 0);
     }
@@ -107,7 +107,7 @@ impl Writer {
             WriterMode::Graphics => {
                 for y in row * 8..row * 8 + 8 {
                     for x in 0..GRAPHICS_SIZE.0 * 8 - 1 {
-                        self.graphics.set_pixel(x, y, Color16::Blue);
+                        self.graphics.set_pixel(x, y, Color16::Black);
                     }
                 }
             }
@@ -171,7 +171,7 @@ impl Writer {
                             if col < buf[row].chars.len() {
                                 character = buf[row].chars[col].character;
                             }
-                            self.graphics.draw_character(col * 8, row * 8, 0xFF as char, Color16::Blue);
+                            self.graphics.draw_character(col * 8, row * 8, 0xFF as char, Color16::Black);
                             self.graphics.draw_character(col * 8, row * 8, character, Color16::White);
                         }
                     }
