@@ -5,6 +5,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 pub mod simple_executor;
 pub mod keyboard;
+pub mod mouse;
 pub mod executor;
 pub mod term;
 

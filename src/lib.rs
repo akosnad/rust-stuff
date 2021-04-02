@@ -21,7 +21,6 @@ pub mod task;
 pub mod time;
 pub mod textbuffer;
 pub mod gui;
-pub mod mouse;
 pub mod peripheral;
 
 use core::panic::PanicInfo;
@@ -29,7 +28,7 @@ use core::panic::PanicInfo;
 pub fn init() {
     klog::init().expect("couldn't init logger");
     gdt::init();
-    mouse::init();
+    peripheral::mouse::init();
     interrupts::init_idt();
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();

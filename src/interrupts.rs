@@ -120,7 +120,7 @@ extern "x86-interrupt" fn mouse_interrupt_handler(_stack_frame: &mut InterruptSt
 
     let mut port = PortReadOnly::new(0x60);
     let packet = unsafe { port.read() };
-    crate::mouse::MOUSE.lock().process_packet(packet);
+    crate::peripheral::mouse::add_packet(packet);
 
     unsafe {
         PICS.lock()

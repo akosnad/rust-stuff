@@ -1,4 +1,5 @@
 pub mod keyboard;
+pub mod mouse;
 
 /// Describes an object that listens for peripheral events
 pub trait IObserver<T> {

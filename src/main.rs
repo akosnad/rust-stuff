@@ -16,8 +16,8 @@ entry_point!(kernel_main);
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rust_stuff::allocator;
     use rust_stuff::memory::{self, BootInfoFrameAllocator};
-    use rust_stuff::task::{Task, executor::Executor, keyboard, term};
-    use rust_stuff::peripheral::{keyboard::Keyboard, ISubject};
+    use rust_stuff::task::{Task, executor::Executor, keyboard, mouse, term};
+    use rust_stuff::peripheral::{ISubject, keyboard::Keyboard, mouse::Mouse};
     use rust_stuff::vga::term::TERM_INPUT;
 
     crate::init();
@@ -34,9 +34,13 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let mut keyboard = Keyboard::new();
     keyboard.attach(&*TERM_INPUT);
 
+    let mut mouse = Mouse::new();
+    mouse.attach(&*TERM_INPUT);
+
     let mut executor = Executor::new();
     executor.spawn(Task::new(term::process_buffer()));
     executor.spawn(Task::new(keyboard::process_keypresses(keyboard)));
+    executor.spawn(Task::new(mouse::process_states(mouse)));
     executor.run();
 }
 

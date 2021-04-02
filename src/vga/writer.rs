@@ -47,6 +47,15 @@ impl Writer {
         self.move_cursor(self.col, self.row)
     }
 
+    pub fn draw_mouse(&mut self, x: usize, y: usize) {
+        match self.mode {
+            WriterMode::Graphics => {
+                self.graphics.set_pixel(x, y, Color16::Red);
+            }
+            _ => {}
+        }
+    }
+
     pub fn clear(&mut self) {
         match self.mode {
             WriterMode::Text => { 

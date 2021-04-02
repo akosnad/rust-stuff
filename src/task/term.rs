@@ -3,7 +3,7 @@ use crossbeam_queue::ArrayQueue;
 use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::stream::{Stream, StreamExt};
 use futures_util::task::AtomicWaker;
-use crate::vga::term::{Term, USE_SCREENBUFFER};
+use crate::vga::term::TERM;
 
 static TERM_QUEUE: OnceCell<ArrayQueue<char>> = OnceCell::uninit();
 static TERM_WAKER: AtomicWaker = AtomicWaker::new();
@@ -15,8 +15,6 @@ pub(crate) fn add_char(character: char) {
         } else {
             TERM_WAKER.wake();
         }
-    } else {
-        log::warn!("terminal character queue uninitialized")
     }
 }
 
@@ -56,11 +54,9 @@ impl Stream for CharacterStream {
 
 pub async fn process_buffer() {
     let mut stream = CharacterStream::new();
-    let mut term = Term::new();
-    USE_SCREENBUFFER.try_init_once(|| true).expect("USE_SCREENBUFFER should be initialized once");
     log::debug!("terminal buffer initialized");
-    term.update_screen();
     while let Some(character) = stream.next().await {
+        let mut term = TERM.lock();
         term.write_byte(character as u8);
     }
 }

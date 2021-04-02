@@ -2,19 +2,20 @@ use super::*;
 use super::writer::*;
 use core::fmt;
 use alloc::string::String;
-use conquer_once::spin::OnceCell;
 use crate::textbuffer::Textbuffer;
 use spin::Mutex;
 use num_enum::FromPrimitive;
 use crate::gui::{window::Window, GuiDrawable};
-use crate::peripheral::IObserver;
+use crate::peripheral::{IObserver};
+use ps2_mouse::MouseState;
 use pc_keyboard::{DecodedKey, KeyCode};
-
-
-pub static USE_SCREENBUFFER: OnceCell<bool> = OnceCell::uninit();
 
 lazy_static! {
     static ref TERM_BUFFER: Mutex<Textbuffer> = Mutex::new(Textbuffer::new());
+}
+
+lazy_static! {
+    pub static ref TERM: Mutex<Term> = Mutex::new(Term::new());
 }
 
 lazy_static! {
@@ -56,6 +57,7 @@ pub struct Term {
     row: usize,
     scroll_row: usize,
     scroll_col: usize,
+    mouse_pos: (usize, usize),
 }
 
 impl Term {
@@ -67,6 +69,7 @@ impl Term {
             row: 0,
             scroll_row: 0,
             scroll_col: 0,
+            mouse_pos: (0, 0),
         }
     }
 
@@ -119,6 +122,41 @@ impl Term {
         writer.print_textbuffer(&lines);
         let (x, y) = self.get_cursor();
         writer.move_cursor(x, y);
+    }
+
+    pub fn update_mouse(&mut self, x: isize, mut y: isize) {
+        match self.active_term {
+            VirtualTerminals::GUI => {
+                if x < 0 {
+                    if self.mouse_pos.0.checked_sub(x.abs() as usize) == None {
+                        self.mouse_pos.0 = 0;
+                    } else {
+                        self.mouse_pos.0 -= x.abs() as usize;
+                    }
+                } else if self.mouse_pos.0.checked_add(x as usize) == None || self.mouse_pos.0 >= (GRAPHICS_SIZE.0 * 8) - 1 {
+                    self.mouse_pos.0 = GRAPHICS_SIZE.0 * 8 - 1;
+                } else {
+                    self.mouse_pos.0 += x as usize;
+                }
+
+                y = -y;
+                if y < 0 {
+                    if self.mouse_pos.1.checked_sub(y.abs() as usize) == None {
+                        self.mouse_pos.1 = 0;
+                    } else {
+                        self.mouse_pos.1 -= y.abs() as usize;
+                    }
+                } else if self.mouse_pos.1.checked_add(y as usize) == None || self.mouse_pos.1 >= (GRAPHICS_SIZE.1 * 8) - 1 {
+                    self.mouse_pos.1 = GRAPHICS_SIZE.1 * 8 - 1;
+                } else {
+                    self.mouse_pos.1 += y as usize;
+                }
+
+                let mut writer = WRITER.lock();
+                writer.draw_mouse(self.mouse_pos.0, self.mouse_pos.1);
+            }
+            _ => {}
+        }
     }
 
     fn get_cursor(&self) -> (usize, usize) {
@@ -327,6 +365,13 @@ impl IObserver<DecodedKey> for TermInput {
             DecodedKey::Unicode(character) => add_char(character),
             DecodedKey::RawKey(key) => add_char(key as u8 as char),
         }
+    }
+}
+
+impl IObserver<MouseState> for TermInput {
+    fn update(&self, value: &MouseState) {
+        let mut term = TERM.lock();
+        term.update_mouse(value.get_x().into(), value.get_y().into());
     }
 }
 

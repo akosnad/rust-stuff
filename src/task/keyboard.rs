@@ -18,8 +18,6 @@ pub(crate) fn add_scancode(scancode: u8) {
         } else {
             WAKER.wake();
         }
-    } else {
-        log::warn!("scancode queue uninitialized");
     }
 }
 
