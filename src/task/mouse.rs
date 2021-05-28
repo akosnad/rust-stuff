@@ -12,7 +12,7 @@ static WAKER: AtomicWaker = AtomicWaker::new();
 pub(crate) fn add_state(state: MouseState) {
     if let Ok(queue) = STATE_QUEUE.try_get() {
         if let Err(_) = queue.push(state) {
-            log::warn!("mouse state queue ful; dropping input")
+            log::warn!("mouse state queue full; dropping input")
         } else {
             WAKER.wake();
         }
