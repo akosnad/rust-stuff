@@ -20,7 +20,7 @@ impl Window<'_> {
 }
 
 impl GuiDrawable for Window<'_> {
-    fn draw(&self, writer: &Graphics640x480x16) {
+    fn draw(&self, writer: &dyn GraphicsWriter<Color16>) {
         self.draw_outline(writer, self.geometry, Color16::LightGrey);
         self.fill(writer, self.geometry, Color16::DarkGrey);
         self.draw_title(writer, self.geometry, self.title, Color16::White);

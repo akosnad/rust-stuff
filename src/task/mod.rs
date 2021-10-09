@@ -8,6 +8,7 @@ pub mod keyboard;
 pub mod mouse;
 pub mod executor;
 pub mod term;
+pub mod canvasgame;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TaskId(u64);

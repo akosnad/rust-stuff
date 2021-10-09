@@ -54,7 +54,7 @@ pub fn init_heap(
         let heap_end_page = Page::containing_address(heap_end);
         Page::range_inclusive(heap_start_page, heap_end_page)
     };
-    log::trace!("initializing heap: {:?}; with size: {:?}", page_range, heap_size);
+    log::trace!("initializing heap: {:?}; with size: {:?} MiB", page_range, heap_size / 1024 / 1024);
 
     for page in page_range {
         let frame = frame_allocator

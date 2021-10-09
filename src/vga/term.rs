@@ -11,10 +11,6 @@ use ps2_mouse::MouseState;
 use pc_keyboard::{DecodedKey, KeyCode};
 
 lazy_static! {
-    static ref TERM_BUFFER: Mutex<Textbuffer> = Mutex::new(Textbuffer::new());
-}
-
-lazy_static! {
     pub static ref TERM: Mutex<Term> = Mutex::new(Term::new());
 }
 
@@ -45,6 +41,7 @@ pub enum VirtualTerminals {
     KernelLog = 0xF0,
     Console,
     GUI,
+    CanvasGame,
     ScreenTest,
     #[num_enum(default)]
     Unknown,
@@ -77,7 +74,9 @@ impl Term {
         let mut writer = WRITER.lock();
         if writer.mode != WriterMode::Graphics && self.active_term == VirtualTerminals::GUI {
             writer.change_mode(WriterMode::Graphics);
-        } else if writer.mode != WriterMode::Text && self.active_term != VirtualTerminals::GUI {
+        } else if writer.mode != WriterMode::Game && self.active_term == VirtualTerminals::CanvasGame {
+            writer.change_mode(WriterMode::Game);
+        } else if writer.mode != WriterMode::Text && (self.active_term != VirtualTerminals::GUI && self.active_term != VirtualTerminals::CanvasGame) {
             writer.change_mode(WriterMode::Text);
         }
 
@@ -90,9 +89,9 @@ impl Term {
                 lines = crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1);
             },
             VirtualTerminals::GUI => {
-                TEST_WINDOW.draw(writer.get_graphics_writer());
+                TEST_WINDOW.draw(writer.get_graphics_writer() as &vga::writers::GraphicsWriter<Color16>);
                 return;
-            }
+            },
             VirtualTerminals::ScreenTest => {
                 writer.clear();
                 let mut string = String::new();
@@ -264,6 +263,9 @@ impl Term {
             },
             VirtualTerminals::GUI => {
                 self.update_screen();
+            },
+            VirtualTerminals::CanvasGame => {
+                self.update_screen();
             }
             VirtualTerminals::ScreenTest => {
                 self.col = 0;
@@ -320,20 +322,13 @@ impl Term {
                     _ => {},
                 }
             },
-            VirtualTerminals::GUI => {
+            _ => {
                 match byte {
                     byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
                     byte if byte == 0x00 => self.update_screen(),
                     _ => {}
                 }
             }
-            VirtualTerminals::ScreenTest => {
-                match byte {
-                    byte if VirtualTerminals::from(byte) != VirtualTerminals::Unknown => self.change_focus(VirtualTerminals::from(byte)),
-                    _ => {}
-                }
-        },
-            _ => {}
         }
     }
 
@@ -361,6 +356,7 @@ impl IObserver<DecodedKey> for TermInput {
             DecodedKey::RawKey(KeyCode::F1) => add_char(VirtualTerminals::KernelLog as u8 as char),
             DecodedKey::RawKey(KeyCode::F2) => add_char(VirtualTerminals::Console as u8 as char),
             DecodedKey::RawKey(KeyCode::F3) => add_char(VirtualTerminals::GUI as u8 as char),
+            DecodedKey::RawKey(KeyCode::F4) => add_char(VirtualTerminals::CanvasGame as u8 as char),
             DecodedKey::RawKey(KeyCode::F12) => add_char(VirtualTerminals::ScreenTest as u8 as char),
             DecodedKey::Unicode(character) => add_char(character),
             DecodedKey::RawKey(key) => add_char(key as u8 as char),

@@ -1,17 +1,20 @@
 use super::*;
 use crate::textbuffer::BufferLine;
-use vga::writers::{Text80x25, Graphics640x480x16, ScreenCharacter, TextWriter, GraphicsWriter};
+use vga::writers::{Text80x25, Graphics640x480x16, Graphics320x240x256, ScreenCharacter, TextWriter, GraphicsWriter};
+use alloc::vec::Vec;
 
 #[derive(PartialEq)]
 pub enum WriterMode {
     Text,
-    Graphics
+    Graphics,
+    Game,
 }
 
 pub struct Writer {
     pub mode: WriterMode,
     text: Text80x25,
     graphics: Graphics640x480x16,
+    game_graphics: Graphics320x240x256,
     col: usize,
     row: usize,
 }
@@ -30,6 +33,11 @@ impl Writer {
                 log::debug!("Switching video mode to: {:?}", self.graphics);
                 self.graphics.set_mode();
             },
+            WriterMode::Game => {
+                self.game_graphics = Graphics320x240x256::new();
+                log::debug!("Switching video mode to: {:?}", self.game_graphics);
+                self.game_graphics.set_mode();
+            }
         }
         self.clear();
     }
@@ -63,6 +71,7 @@ impl Writer {
                 self.text.fill_screen(character);
             },
             WriterMode::Graphics => self.graphics.clear_screen(Color16::Black),
+            WriterMode::Game => self.game_graphics.clear_screen(0x0),
         }
         self.move_cursor(0, 0);
     }
@@ -96,7 +105,8 @@ impl Writer {
                         self.col += 1;
                     }
                 }
-            }
+            },
+            _ => {}
         }
     }
     pub fn write_string(&mut self, s: &str) {
@@ -119,7 +129,8 @@ impl Writer {
                         self.graphics.set_pixel(x, y, Color16::Black);
                     }
                 }
-            }
+            },
+            _ => {}
         }
     }
 
@@ -148,7 +159,8 @@ impl Writer {
                 }
                 self.clear_row(self.row);
                 self.col = 0;
-            }
+            },
+            _ => {}
         }
     }
 
@@ -185,7 +197,8 @@ impl Writer {
                         }
                     }
                 }
-            }
+            },
+            _ => {}
         }
     }
 
@@ -206,6 +219,7 @@ lazy_static! {
         mode: WriterMode::Text,
         text: Text80x25::new(),
         graphics: Graphics640x480x16::new(),
+        game_graphics: Graphics320x240x256::new(),
         col: 0,
         row: 0,
     });

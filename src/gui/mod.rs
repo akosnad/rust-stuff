@@ -15,13 +15,13 @@ pub type Coord<T> = (T, T);
 pub type Geometry<T> = (Coord<T>, Coord<T>);
 
 pub trait GuiDrawable {
-    fn fill(&self, writer: &Graphics640x480x16, geometry: Geometry<isize>, color: Color16) {
+    fn fill(&self, writer: &dyn GraphicsWriter<Color16>, geometry: Geometry<isize>, color: Color16) {
         for y in geometry.0.1 + 1..geometry.1.1 {
             writer.draw_line((geometry.0.0 + 1, y), (geometry.1.0 - 1, y), color);
         }
     }
 
-    fn draw_outline(&self, writer: &Graphics640x480x16, geometry: Geometry<isize>, color: Color16) {
+    fn draw_outline(&self, writer: &dyn GraphicsWriter<Color16>, geometry: Geometry<isize>, color: Color16) {
         let mut top_right =     (geometry.1.0, geometry.0.1);
         let mut bottom_right =  (geometry.1.0, geometry.1.1);
         let mut top_left =      (geometry.0.0, geometry.0.1);
@@ -38,7 +38,7 @@ pub trait GuiDrawable {
         }
     }
 
-    fn draw_title(&self, writer: &Graphics640x480x16, geometry: Geometry<isize>, title: &str, color: Color16) {
+    fn draw_title(&self, writer: &dyn GraphicsWriter<Color16>, geometry: Geometry<isize>, title: &str, color: Color16) {
         let mut x = geometry.0.0 + 3;
         let y = geometry.0.1 + 3;
         for c in (*title).chars() {
@@ -47,5 +47,5 @@ pub trait GuiDrawable {
         }
     }
 
-    fn draw(&self, writer: &Graphics640x480x16);
+    fn draw(&self, writer: &dyn GraphicsWriter<Color16>);
 }

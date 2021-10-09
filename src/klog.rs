@@ -58,5 +58,5 @@ pub fn init() -> Result<(), SetLoggerError> {
 
 #[cfg(not(debug_assertions))]
 pub fn init() -> Result<(), SetLoggerError> {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Warn))
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info))
 }

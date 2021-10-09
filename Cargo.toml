@@ -36,6 +36,7 @@ log = {version = "0.4", default-features = false }
 vga = { git = "https://github.com/rust-osdev/vga" }
 num_enum = {version = "0.5", default-features = false}
 ps2-mouse = { git = "https://github.com/rust-osdev/ps2-mouse" }
+canvasgame-rust = { git = "https://github.com/akosnad/canvasgame-rust", default-features = false, features = ["bare"] }
 
 [dependencies.lazy_static]
 version = "1.4"
@@ -58,4 +59,3 @@ features = ["alloc"]
 [dependencies.crossbeam-utils]
 version = "0.8"
 default-features = false
-#features = ["alloc"]

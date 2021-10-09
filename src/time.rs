@@ -6,6 +6,7 @@ static TIME: AtomicCell<usize> = AtomicCell::new(0);
 /// 
 /// Must not block or allocate
 pub(crate) fn increment_time() {
+    crate::task::canvasgame::next();
     TIME.fetch_add(1);
 }
 
