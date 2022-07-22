@@ -1,7 +1,6 @@
 use super::*;
 use crate::textbuffer::BufferLine;
 use vga::writers::{Text80x25, Graphics640x480x16, Graphics320x240x256, ScreenCharacter, TextWriter, GraphicsWriter};
-use alloc::vec::Vec;
 
 #[derive(PartialEq)]
 pub enum WriterMode {

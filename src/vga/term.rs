@@ -89,7 +89,7 @@ impl Term {
                 lines = crate::klog::LOG_BUFFER.lock().get_lines(self.scroll_row, TEXTMODE_SIZE.1);
             },
             VirtualTerminals::GUI => {
-                TEST_WINDOW.draw(writer.get_graphics_writer() as &vga::writers::GraphicsWriter<Color16>);
+                TEST_WINDOW.draw(writer.get_graphics_writer() as &dyn vga::writers::GraphicsWriter<Color16>);
                 return;
             },
             VirtualTerminals::ScreenTest => {

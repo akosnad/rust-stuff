@@ -1,5 +1,4 @@
 use super::*;
-use vga::writers::{Graphics640x480x16};
 use vga::colors::Color16;
 
 pub struct Window<'a> {

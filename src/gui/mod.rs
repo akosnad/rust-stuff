@@ -1,4 +1,4 @@
-use vga::writers::{Graphics640x480x16, GraphicsWriter};
+use vga::writers::GraphicsWriter;
 use vga::colors::Color16;
 use core::convert::TryInto;
 

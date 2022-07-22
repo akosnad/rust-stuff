@@ -4,7 +4,6 @@ use core::{pin::Pin, task::{Poll, Context}};
 use futures_util::task::AtomicWaker;
 use lazy_static::lazy_static;
 use spin::Mutex;
-use alloc::vec::Vec;
 
 static WAKER: AtomicWaker = AtomicWaker::new();
 
@@ -45,7 +44,6 @@ impl Stream for Interval {
 }
 
 pub async fn run() {
-    use vga::writers::GraphicsWriter;
     use core::convert::TryInto;
 
     //let buf = crate::vga::writer::WRITER.lock().graphics.get_frame_buffer();
